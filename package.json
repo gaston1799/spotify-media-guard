@@ -1,0 +1,26 @@
+{
+  "name": "spotify-media-guard",
+  "version": "0.1.0",
+  "description": "Windows media-control guard for Spotify with ad-like media restart handling.",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:monitor": "electron . -- --monitor-only",
+    "package:win": "electron-packager . \"Spotify Media Guard\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=\"^/dist($|/)\" --ignore=\"^/node_modules/\\\\.cache($|/)\"",
+    "release:win": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-release.ps1",
+    "install:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/install-desktop.ps1",
+    "guard": "powershell -Sta -NoProfile -ExecutionPolicy Bypass -File ./WindowsMediaLogger.ps1"
+  },
+  "keywords": [
+    "spotify",
+    "windows",
+    "media",
+    "electron"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron/packager": "^20.0.1",
+    "electron": "^42.4.0"
+  }
+}

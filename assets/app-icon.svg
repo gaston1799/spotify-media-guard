@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Spotify Media Guard icon</title>
+  <desc id="desc">A terminal-inspired shield with a music note.</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" y1="18" x2="224" y2="238" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#18211d"/>
+      <stop offset="1" stop-color="#050807"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="64" y1="35" x2="192" y2="219" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1ed760"/>
+      <stop offset="1" stop-color="#0f8c46"/>
+    </linearGradient>
+    <filter id="softShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <path d="M128 26 202 54v63c0 51-29 91-74 113-45-22-74-62-74-113V54l74-28Z" fill="url(#shield)" filter="url(#softShadow)"/>
+  <path d="M128 45 184 66v50c0 38-20 70-56 90-36-20-56-52-56-90V66l56-21Z" fill="#07100b" opacity=".82"/>
+  <path d="M91 92h44c18 0 31 13 31 30v4c0 17-13 30-31 30h-18v28H91V92Zm26 23v18h16c5 0 8-4 8-9s-3-9-8-9h-16Z" fill="#dfffea"/>
+  <path d="M78 183h27" stroke="#32e6ff" stroke-width="9" stroke-linecap="round"/>
+  <path d="M78 166l16 12-16 12" fill="none" stroke="#32e6ff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="172" cy="178" r="14" fill="#1ed760"/>
+  <path d="M181 178V98l-47 10v22l47-10" fill="none" stroke="#1ed760" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M79 72h98" stroke="#ffffff" stroke-opacity=".18" stroke-width="5" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spotify Media Guard</title>
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="../assets/app-icon.svg" alt="" width="44" height="44">
+        <div>
+          <h1>Spotify Media Guard</h1>
+          <p>Windows media watcher and restart automation</p>
+        </div>
+      </div>
+      <div class="status" id="saveStatus">READY</div>
+    </header>
+
+    <section class="terminal">
+      <div class="line dim">C:\&gt; media-guard --settings</div>
+      <div class="grid">
+        <label>
+          <span>Poll interval</span>
+          <input id="pollMilliseconds" type="number" min="100" step="50">
+          <small>Milliseconds between Windows media checks.</small>
+        </label>
+        <label>
+          <span>Restart cooldown</span>
+          <input id="restartCooldownSeconds" type="number" min="5" step="5">
+          <small>Seconds before another ad-trigger restart can happen.</small>
+        </label>
+        <label>
+          <span>Restart timeout</span>
+          <input id="restartTimeoutSeconds" type="number" min="5" step="5">
+          <small>Seconds to wait for Spotify media after restart.</small>
+        </label>
+        <label>
+          <span>Normal song track #</span>
+          <input id="normalSongTrackNumber" type="number" min="0" step="1">
+          <small>Observed Spotify song marker on this PC.</small>
+        </label>
+        <label>
+          <span>Max short ad seconds</span>
+          <input id="maxShortAdSeconds" type="number" min="1" step="1">
+          <small>Short non-song media under this duration is treated as ad-like.</small>
+        </label>
+        <label>
+          <span>Ad track numbers</span>
+          <input id="adTrackNumbers" type="text" spellcheck="false">
+          <small>Comma-separated values, e.g. 5.</small>
+        </label>
+      </div>
+
+      <div class="toggles">
+        <label><input id="autoRestart" type="checkbox"> Auto restart Spotify on ad-like media</label>
+        <label><input id="useColor" type="checkbox"> Use colored terminal output</label>
+        <label><input id="treatShortNonSongTrackAsAd" type="checkbox"> Treat short non-song tracks as ad-like</label>
+        <label><input id="treatBlankShortMediaAsAd" type="checkbox"> Treat blank short media as ad-like</label>
+      </div>
+
+      <div class="actions">
+        <button id="saveBtn">Save Settings</button>
+        <button id="resetBtn">Reset Defaults</button>
+        <button id="reloadBtn">Reload</button>
+        <button id="startGuardBtn">Start Guard</button>
+        <button id="stopGuardBtn">Stop Guard</button>
+        <button id="openLogsBtn">Open Logs</button>
+      </div>
+      <pre id="preview" aria-label="settings preview"></pre>
+      <section class="log-panel" aria-label="live guard log">
+        <div class="line dim">C:\&gt; media-guard --live</div>
+        <pre id="liveLog"></pre>
+      </section>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

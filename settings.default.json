@@ -1,0 +1,16 @@
+{
+  "pollMilliseconds": 500,
+  "restartCooldownSeconds": 90,
+  "restartTimeoutSeconds": 60,
+  "autoRestart": true,
+  "useColor": true,
+  "adDetection": {
+    "adTrackNumbers": [
+      5
+    ],
+    "normalSongTrackNumber": 2,
+    "maxShortAdSeconds": 90,
+    "treatShortNonSongTrackAsAd": true,
+    "treatBlankShortMediaAsAd": true
+  }
+}
