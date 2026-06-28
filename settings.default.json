@@ -10,7 +10,8 @@
     ],
     "normalSongTrackNumber": 2,
     "maxShortAdSeconds": 90,
-    "treatShortNonSongTrackAsAd": true,
-    "treatBlankShortMediaAsAd": true
+    "treatShortNonSongTrackAsAd": false,
+    "treatBlankShortMediaAsAd": false,
+    "treatDisabledNextAsAd": true
   }
 }

@@ -9,6 +9,7 @@ const fields = [
 const adFields = [
   "normalSongTrackNumber",
   "maxShortAdSeconds",
+  "treatDisabledNextAsAd",
   "treatShortNonSongTrackAsAd",
   "treatBlankShortMediaAsAd"
 ];

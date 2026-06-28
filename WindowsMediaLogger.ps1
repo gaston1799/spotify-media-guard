@@ -56,8 +56,9 @@ function Read-Settings {
             adTrackNumbers = @(5)
             normalSongTrackNumber = 2
             maxShortAdSeconds = 90
-            treatShortNonSongTrackAsAd = $true
-            treatBlankShortMediaAsAd = $true
+            treatShortNonSongTrackAsAd = $false
+            treatBlankShortMediaAsAd = $false
+            treatDisabledNextAsAd = $true
         }
     }
 }
@@ -448,7 +449,7 @@ function Get-MediaKind($source, $status, $title, $artist, $durationSeconds, $tra
     $maxShortAdSeconds = [int]$settings.adDetection.maxShortAdSeconds
     $spotifyAdTrackNumber = ($adTrackNumbers -contains [int]$trackNumber) -and $durationSeconds -gt 0 -and $durationSeconds -le $maxShortAdSeconds
     $spotifySuspiciousShortTrack = [bool]$settings.adDetection.treatShortNonSongTrackAsAd -and $trackNumber -ne $normalSongTrackNumber -and $durationSeconds -gt 0 -and $durationSeconds -le $maxShortAdSeconds
-    $spotifyCannotSkip = $isSpotify -and $status -eq "Playing" -and -not [bool]$isNextEnabled
+    $spotifyCannotSkip = [bool]$settings.adDetection.treatDisabledNextAsAd -and $isSpotify -and $status -eq "Playing" -and -not [bool]$isNextEnabled
 
     if ($spotifyCannotSkip) {
         return "spotify_ad_or_placeholder"
