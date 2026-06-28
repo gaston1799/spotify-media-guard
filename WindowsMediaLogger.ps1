@@ -102,6 +102,8 @@ function Get-EventColor($kind) {
         "restart_exit" { "DarkYellow"; break }
         "waiting_for_spotify_media" { "Cyan"; break }
         "spotify_media_detected" { "Green"; break }
+        "skip_command" { "Cyan"; break }
+        "skip_command_error" { "Red"; break }
         "play_command" { "Cyan"; break }
         "play_command_error" { "Red"; break }
         "restart_timeout" { "Red"; break }
@@ -124,6 +126,8 @@ function Get-EventLabel($kind) {
         "restart_exit" { "EXIT"; break }
         "waiting_for_spotify_media" { "WAIT"; break }
         "spotify_media_detected" { "FOUND"; break }
+        "skip_command" { "SKIP"; break }
+        "skip_command_error" { "SKIP_ERR"; break }
         "play_command" { "PLAY"; break }
         "play_command_error" { "PLAY_ERR"; break }
         "restart_timeout" { "TIMEOUT"; break }
@@ -193,6 +197,24 @@ function Normalize-Text($value) {
     return (($value.ToString() -replace "\s+", " ").Trim())
 }
 
+function Get-BoolProperty($value, $name, $default) {
+    try {
+        if ($null -eq $value) {
+            return [bool]$default
+        }
+
+        $property = $value.PSObject.Properties[$name]
+        if ($null -eq $property) {
+            return [bool]$default
+        }
+
+        return [bool]$property.Value
+    }
+    catch {
+        return [bool]$default
+    }
+}
+
 function Format-MediaTitle($session) {
     if (-not [string]::IsNullOrWhiteSpace($session.Artist) -and -not [string]::IsNullOrWhiteSpace($session.Title)) {
         return "$($session.Artist) - $($session.Title)"
@@ -206,7 +228,7 @@ function Format-MediaTitle($session) {
 }
 
 function Format-MediaTiming($session) {
-    return "posSec=$([Math]::Round($session.Position, 1)) durSec=$([Math]::Round($session.Duration, 1)) track=$($session.TrackNumber) kind=$($session.Kind)"
+    return "posSec=$([Math]::Round($session.Position, 1)) durSec=$([Math]::Round($session.Duration, 1)) track=$($session.TrackNumber) next=$($session.IsNextEnabled) prev=$($session.IsPreviousEnabled) kind=$($session.Kind)"
 }
 
 function Format-MediaEvent($session) {
@@ -343,16 +365,49 @@ function Resolve-SpotifyPath {
 
 function Stop-SpotifyProcesses {
     $processes = @(Get-Process -Name "Spotify" -ErrorAction SilentlyContinue)
+    $forceStopped = $false
 
     foreach ($process in $processes) {
         try {
+            $closed = $process.CloseMainWindow()
+            if ($closed) {
+                Write-Log $eventLogPath "restart_exit" "Requested normal Spotify window close for process $($process.Id)"
+            }
+            else {
+                Write-Log $eventLogPath "restart_exit" "Spotify process $($process.Id) did not expose a closeable main window"
+            }
+        }
+        catch {
+            Write-Log $eventLogPath "error" "Could not request normal Spotify close for process $($process.Id): $($_.Exception.Message)"
+        }
+    }
+
+    $deadline = (Get-Date).AddSeconds(5)
+    while ((Get-Date) -lt $deadline) {
+        if (@(Get-Process -Name "Spotify" -ErrorAction SilentlyContinue).Count -eq 0) {
+            return $forceStopped
+        }
+
+        Start-Sleep -Milliseconds 250
+    }
+
+    foreach ($process in $processes) {
+        try {
+            $liveProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+            if ($null -eq $liveProcess) {
+                continue
+            }
+
             Stop-Process -Id $process.Id -Force -ErrorAction Stop
-            Write-Log $eventLogPath "restart_exit" "Stopped Spotify process $($process.Id)"
+            $forceStopped = $true
+            Write-Log $eventLogPath "restart_exit" "Force-stopped Spotify process $($process.Id)"
         }
         catch {
             Write-Log $eventLogPath "error" "Could not stop Spotify process $($process.Id): $($_.Exception.Message)"
         }
     }
+
+    return $forceStopped
 }
 
 function Wait-SpotifyClosed {
@@ -382,7 +437,7 @@ function Start-SpotifyResolved($launchPath) {
     }
 }
 
-function Get-MediaKind($source, $title, $artist, $durationSeconds, $trackNumber) {
+function Get-MediaKind($source, $status, $title, $artist, $durationSeconds, $trackNumber, $isNextEnabled, $isPreviousEnabled) {
     $isSpotify = $source -like "*Spotify*"
     $blankTitle = [string]::IsNullOrWhiteSpace($title)
     $emDash = [char]0x2014
@@ -393,6 +448,11 @@ function Get-MediaKind($source, $title, $artist, $durationSeconds, $trackNumber)
     $maxShortAdSeconds = [int]$settings.adDetection.maxShortAdSeconds
     $spotifyAdTrackNumber = ($adTrackNumbers -contains [int]$trackNumber) -and $durationSeconds -gt 0 -and $durationSeconds -le $maxShortAdSeconds
     $spotifySuspiciousShortTrack = [bool]$settings.adDetection.treatShortNonSongTrackAsAd -and $trackNumber -ne $normalSongTrackNumber -and $durationSeconds -gt 0 -and $durationSeconds -le $maxShortAdSeconds
+    $spotifyCannotSkip = $isSpotify -and $status -eq "Playing" -and -not [bool]$isNextEnabled
+
+    if ($spotifyCannotSkip) {
+        return "spotify_ad_or_placeholder"
+    }
 
     if ($isSpotify -and $spotifyAdTrackNumber) {
         return "spotify_ad_or_placeholder"
@@ -430,6 +490,7 @@ function Get-MediaSessions {
         $props = Await-WinRtOperation ($session.TryGetMediaPropertiesAsync()) $mediaPropsType
         $playback = $session.GetPlaybackInfo()
         $timeline = $session.GetTimelineProperties()
+        $controls = $playback.Controls
 
         $source = Normalize-Text $session.SourceAppUserModelId
         $status = Normalize-Text $playback.PlaybackStatus
@@ -439,7 +500,9 @@ function Get-MediaSessions {
         $albumArtist = Normalize-Text $props.AlbumArtist
         $duration = [Math]::Max(0, ($timeline.EndTime - $timeline.StartTime).TotalSeconds)
         $position = [Math]::Max(0, ($timeline.Position - $timeline.StartTime).TotalSeconds)
-        $kind = Get-MediaKind $source $title $artist $duration $props.TrackNumber
+        $isNextEnabled = Get-BoolProperty $controls "IsNextEnabled" $true
+        $isPreviousEnabled = Get-BoolProperty $controls "IsPreviousEnabled" $true
+        $kind = Get-MediaKind $source $status $title $artist $duration $props.TrackNumber $isNextEnabled $isPreviousEnabled
 
         $items += [pscustomobject]@{
             Session = $session
@@ -452,6 +515,8 @@ function Get-MediaSessions {
             TrackNumber = $props.TrackNumber
             Duration = $duration
             Position = $position
+            IsNextEnabled = $isNextEnabled
+            IsPreviousEnabled = $isPreviousEnabled
             Kind = $kind
         }
     }
@@ -469,7 +534,7 @@ function Restart-SpotifyAndResume {
         Write-Log $eventLogPath "restart_exit" "Resolved Spotify path: $launchPath"
     }
 
-    Stop-SpotifyProcesses
+    $forceStopped = Stop-SpotifyProcesses
     Wait-SpotifyClosed
     Start-SpotifyResolved $launchPath
 
@@ -483,6 +548,23 @@ function Restart-SpotifyAndResume {
             $item = $spotifySong[0]
             Write-Log $eventLogPath "spotify_media_detected" (Format-MediaEvent $item)
             Write-RawSnapshot "media_after_restart" $item
+
+            if ($forceStopped) {
+                try {
+                    $skipped = Await-WinRtOperation ($item.Session.TrySkipNextAsync()) $boolType
+                    Write-Log $eventLogPath "skip_command" "Force-stop fallback used; sent next command; accepted=$skipped"
+                    Start-Sleep -Milliseconds $PollMilliseconds
+                    $nextSong = @(Get-MediaSessions | Where-Object { $_.Kind -eq "spotify_song" } | Select-Object -First 1)
+                    if ($nextSong.Count -gt 0) {
+                        $item = $nextSong[0]
+                        Write-Log $eventLogPath "spotify_media_detected" (Format-MediaEvent $item)
+                        Write-RawSnapshot "media_after_force_skip" $item
+                    }
+                }
+                catch {
+                    Write-Log $eventLogPath "skip_command_error" $_.Exception.Message
+                }
+            }
 
             try {
                 $played = Await-WinRtOperation ($item.Session.TryPlayAsync()) $boolType

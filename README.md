@@ -9,8 +9,10 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 - Electron desktop settings UI.
 - No Spotify API key, login, or Premium requirement.
 - Detects Spotify song, pause, resume, and ad-like placeholder metadata.
-- Logs media position, duration, track number, and detection kind.
+- Logs media position, duration, track number, skip-control state, and detection kind.
+- Treats Spotify media with disabled Next as ad-like before the older metadata heuristics.
 - Restarts Spotify when ad-like metadata is detected.
+- Tries a normal Spotify window close before force-stopping processes. If it has to force-stop, it sends one Next command after reopening to avoid replaying the previous song.
 - Streams PowerShell guard logs into the Electron UI.
 - Resolves Spotify dynamically from running processes, saved paths, common install paths, Microsoft Store paths, and the `spotify:` URI fallback.
 
