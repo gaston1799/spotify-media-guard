@@ -13,6 +13,7 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 - Can treat Spotify media with disabled Next as ad-like before the older metadata heuristics.
 - Restarts Spotify when ad-like metadata is detected.
 - Tries a normal Spotify window close before force-stopping processes. If it has to force-stop, it sends one Next command after reopening to avoid replaying the previous song.
+- Reopens Spotify without activating its window. If Spotify still takes focus, restores the app that was focused before the restart, but only while Spotify remains the foreground app.
 - Streams PowerShell guard logs into the Electron UI.
 - Resolves Spotify dynamically from running processes, saved paths, common install paths, Microsoft Store paths, and the `spotify:` URI fallback.
 

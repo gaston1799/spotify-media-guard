@@ -74,6 +74,42 @@ else {
 $PollMilliseconds = [Math]::Max(100, $effectivePollMilliseconds)
 
 Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction SilentlyContinue
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class MediaGuardNativeMethods
+{
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr ShellExecute(
+        IntPtr hwnd,
+        string operation,
+        string file,
+        string parameters,
+        string directory,
+        int showCommand);
+
+    public static bool LaunchWithoutActivation(string file, string directory)
+    {
+        const int SW_SHOWNOACTIVATE = 4;
+        return ShellExecute(IntPtr.Zero, "open", file, null, directory, SW_SHOWNOACTIVATE).ToInt64() > 32;
+    }
+}
+"@
 $managerType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType=WindowsRuntime]
 $mediaPropsType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties, Windows.Media.Control, ContentType=WindowsRuntime]
 $boolType = [bool]
@@ -107,6 +143,8 @@ function Get-EventColor($kind) {
         "skip_command_error" { "Red"; break }
         "play_command" { "Cyan"; break }
         "play_command_error" { "Red"; break }
+        "focus_restore" { "Cyan"; break }
+        "focus_restore_error" { "Red"; break }
         "restart_timeout" { "Red"; break }
         "restart_missing" { "Red"; break }
         "not_playing" { "DarkGray"; break }
@@ -131,6 +169,8 @@ function Get-EventLabel($kind) {
         "skip_command_error" { "SKIP_ERR"; break }
         "play_command" { "PLAY"; break }
         "play_command_error" { "PLAY_ERR"; break }
+        "focus_restore" { "FOCUS"; break }
+        "focus_restore_error" { "FOCUS_ERR"; break }
         "restart_timeout" { "TIMEOUT"; break }
         "restart_missing" { "MISSING"; break }
         "not_playing" { "IDLE"; break }
@@ -417,11 +457,62 @@ function Wait-SpotifyClosed {
     }
 }
 
+function Get-ForegroundWindowSnapshot {
+    $windowHandle = [MediaGuardNativeMethods]::GetForegroundWindow()
+    if ($windowHandle -eq [IntPtr]::Zero) {
+        return $null
+    }
+
+    [uint32]$processId = 0
+    [void][MediaGuardNativeMethods]::GetWindowThreadProcessId($windowHandle, [ref]$processId)
+    if ($processId -eq 0) {
+        return $null
+    }
+
+    $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+    return [pscustomobject]@{
+        Handle = $windowHandle
+        ProcessId = $processId
+        ProcessName = if ($null -ne $process) { $process.ProcessName } else { "unknown" }
+    }
+}
+
+function Restore-ForegroundWindowIfSpotifyTookFocus($snapshot) {
+    if ($null -eq $snapshot -or $snapshot.ProcessName -eq "Spotify" -or -not [MediaGuardNativeMethods]::IsWindow($snapshot.Handle)) {
+        return $false
+    }
+
+    $currentHandle = [MediaGuardNativeMethods]::GetForegroundWindow()
+    if ($currentHandle -eq [IntPtr]::Zero -or $currentHandle -eq $snapshot.Handle) {
+        return $false
+    }
+
+    [uint32]$currentProcessId = 0
+    [void][MediaGuardNativeMethods]::GetWindowThreadProcessId($currentHandle, [ref]$currentProcessId)
+    $currentProcess = Get-Process -Id $currentProcessId -ErrorAction SilentlyContinue
+    if ($null -eq $currentProcess -or $currentProcess.ProcessName -ne "Spotify") {
+        return $false
+    }
+
+    $restored = [MediaGuardNativeMethods]::SetForegroundWindow($snapshot.Handle)
+    if ($restored) {
+        Write-Log $eventLogPath "focus_restore" "Spotify took focus; restored $($snapshot.ProcessName) (pid $($snapshot.ProcessId))"
+    }
+    else {
+        Write-Log $eventLogPath "focus_restore_error" "Spotify took focus, but Windows refused to restore $($snapshot.ProcessName) (pid $($snapshot.ProcessId))"
+    }
+
+    return $restored
+}
+
 function Start-SpotifyResolved($launchPath) {
     if (-not [string]::IsNullOrWhiteSpace($launchPath) -and (Test-Path -LiteralPath $launchPath)) {
         try {
-            Start-Process -FilePath $launchPath | Out-Null
-            Write-Log $eventLogPath "restart_exit" "Started Spotify from $launchPath"
+            $workingDirectory = Split-Path -Parent $launchPath
+            if (-not [MediaGuardNativeMethods]::LaunchWithoutActivation($launchPath, $workingDirectory)) {
+                throw "Windows ShellExecute returned a launch failure."
+            }
+            Write-Log $eventLogPath "restart_exit" "Started Spotify without activation from $launchPath"
             return
         }
         catch {
@@ -430,8 +521,10 @@ function Start-SpotifyResolved($launchPath) {
     }
 
     try {
-        Start-Process -FilePath "spotify:" | Out-Null
-        Write-Log $eventLogPath "restart_exit" "Started Spotify with URI fallback"
+        if (-not [MediaGuardNativeMethods]::LaunchWithoutActivation("spotify:", $null)) {
+            throw "Windows ShellExecute returned a URI launch failure."
+        }
+        Write-Log $eventLogPath "restart_exit" "Started Spotify without activation using URI fallback"
     }
     catch {
         Write-Log $eventLogPath "error" "Spotify URI fallback failed: $($_.Exception.Message)"
@@ -527,6 +620,10 @@ function Get-MediaSessions {
 
 function Restart-SpotifyAndResume {
     Write-Log $eventLogPath "restart_spotify" "Ad/placeholder detected; restarting Spotify"
+    $foregroundSnapshot = Get-ForegroundWindowSnapshot
+    if ($null -ne $foregroundSnapshot) {
+        Write-Log $eventLogPath "focus_restore" "Preserving foreground app $($foregroundSnapshot.ProcessName) (pid $($foregroundSnapshot.ProcessId))"
+    }
     $launchPath = Resolve-SpotifyPath
     if ([string]::IsNullOrWhiteSpace($launchPath)) {
         Write-Log $eventLogPath "restart_missing" "Spotify.exe was not found; using URI fallback"
@@ -538,11 +635,13 @@ function Restart-SpotifyAndResume {
     $forceStopped = Stop-SpotifyProcesses
     Wait-SpotifyClosed
     Start-SpotifyResolved $launchPath
+    [void](Restore-ForegroundWindowIfSpotifyTookFocus $foregroundSnapshot)
 
     $deadline = (Get-Date).AddSeconds($restartTimeoutSeconds)
     Write-Log $eventLogPath "waiting_for_spotify_media" "Waiting for Spotify song metadata after restart"
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Milliseconds $PollMilliseconds
+        [void](Restore-ForegroundWindowIfSpotifyTookFocus $foregroundSnapshot)
         $spotifySong = @(Get-MediaSessions | Where-Object { $_.Kind -eq "spotify_song" } | Select-Object -First 1)
 
         if ($spotifySong.Count -gt 0) {
@@ -570,6 +669,7 @@ function Restart-SpotifyAndResume {
             try {
                 $played = Await-WinRtOperation ($item.Session.TryPlayAsync()) $boolType
                 Write-Log $eventLogPath "play_command" "Sent play command; accepted=$played"
+                [void](Restore-ForegroundWindowIfSpotifyTookFocus $foregroundSnapshot)
             }
             catch {
                 Write-Log $eventLogPath "play_command_error" $_.Exception.Message
