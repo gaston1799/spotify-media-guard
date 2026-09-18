@@ -94,6 +94,24 @@ public static class MediaGuardNativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindowAsync(IntPtr hWnd, int showCommand);
+
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr ShellExecute(
         IntPtr hwnd,
@@ -107,6 +125,50 @@ public static class MediaGuardNativeMethods
     {
         const int SW_SHOWNOACTIVATE = 4;
         return ShellExecute(IntPtr.Zero, "open", file, null, directory, SW_SHOWNOACTIVATE).ToInt64() > 32;
+    }
+
+    public static bool RestoreForegroundWindow(IntPtr targetWindow, IntPtr spotifyWindow)
+    {
+        if (targetWindow == IntPtr.Zero || !IsWindow(targetWindow))
+            return false;
+
+        uint targetProcessId;
+        uint spotifyProcessId;
+        uint targetThread = GetWindowThreadProcessId(targetWindow, out targetProcessId);
+        uint spotifyThread = GetWindowThreadProcessId(spotifyWindow, out spotifyProcessId);
+        uint currentThread = GetCurrentThreadId();
+        bool attachedTarget = false;
+        bool attachedSpotify = false;
+
+        try
+        {
+            if (targetThread != 0 && targetThread != currentThread)
+                attachedTarget = AttachThreadInput(currentThread, targetThread, true);
+            if (spotifyThread != 0 && spotifyThread != currentThread && spotifyThread != targetThread)
+                attachedSpotify = AttachThreadInput(currentThread, spotifyThread, true);
+
+            BringWindowToTop(targetWindow);
+            SetForegroundWindow(targetWindow);
+            SetFocus(targetWindow);
+
+            if (GetForegroundWindow() != targetWindow && spotifyWindow != IntPtr.Zero && IsWindow(spotifyWindow))
+            {
+                const int SW_MINIMIZE = 6;
+                ShowWindowAsync(spotifyWindow, SW_MINIMIZE);
+                BringWindowToTop(targetWindow);
+                SetForegroundWindow(targetWindow);
+                SetFocus(targetWindow);
+            }
+
+            return GetForegroundWindow() == targetWindow;
+        }
+        finally
+        {
+            if (attachedSpotify)
+                AttachThreadInput(currentThread, spotifyThread, false);
+            if (attachedTarget)
+                AttachThreadInput(currentThread, targetThread, false);
+        }
     }
 }
 "@
@@ -494,7 +556,7 @@ function Restore-ForegroundWindowIfSpotifyTookFocus($snapshot) {
         return $false
     }
 
-    $restored = [MediaGuardNativeMethods]::SetForegroundWindow($snapshot.Handle)
+    $restored = [MediaGuardNativeMethods]::RestoreForegroundWindow($snapshot.Handle, $currentHandle)
     if ($restored) {
         Write-Log $eventLogPath "focus_restore" "Spotify took focus; restored $($snapshot.ProcessName) (pid $($snapshot.ProcessId))"
     }
