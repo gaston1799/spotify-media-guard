@@ -94,7 +94,7 @@ public static class MediaGuardNativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
+    [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();
 
     [DllImport("user32.dll")]
@@ -204,6 +204,7 @@ function Get-EventColor($kind) {
         "skip_command" { "Cyan"; break }
         "skip_command_error" { "Red"; break }
         "play_command" { "Cyan"; break }
+        "play_confirmed" { "Green"; break }
         "play_command_error" { "Red"; break }
         "focus_restore" { "Cyan"; break }
         "focus_restore_error" { "Red"; break }
@@ -230,6 +231,7 @@ function Get-EventLabel($kind) {
         "skip_command" { "SKIP"; break }
         "skip_command_error" { "SKIP_ERR"; break }
         "play_command" { "PLAY"; break }
+        "play_confirmed" { "PLAY_OK"; break }
         "play_command_error" { "PLAY_ERR"; break }
         "focus_restore" { "FOCUS"; break }
         "focus_restore_error" { "FOCUS_ERR"; break }
@@ -556,7 +558,13 @@ function Restore-ForegroundWindowIfSpotifyTookFocus($snapshot) {
         return $false
     }
 
-    $restored = [MediaGuardNativeMethods]::RestoreForegroundWindow($snapshot.Handle, $currentHandle)
+    try {
+        $restored = [MediaGuardNativeMethods]::RestoreForegroundWindow($snapshot.Handle, $currentHandle)
+    }
+    catch {
+        Write-Log $eventLogPath "focus_restore_error" "Focus restore failed without interrupting Spotify resume: $($_.Exception.Message)"
+        return $false
+    }
     if ($restored) {
         Write-Log $eventLogPath "focus_restore" "Spotify took focus; restored $($snapshot.ProcessName) (pid $($snapshot.ProcessId))"
     }
@@ -728,13 +736,36 @@ function Restart-SpotifyAndResume {
                 }
             }
 
-            try {
-                $played = Await-WinRtOperation ($item.Session.TryPlayAsync()) $boolType
-                Write-Log $eventLogPath "play_command" "Sent play command; accepted=$played"
+            $playDeadline = (Get-Date).AddSeconds(8)
+            $playAttempt = 0
+            $playConfirmed = $false
+            while ((Get-Date) -lt $playDeadline -and -not $playConfirmed) {
+                $playAttempt++
+                try {
+                    $played = Await-WinRtOperation ($item.Session.TryPlayAsync()) $boolType
+                    Write-Log $eventLogPath "play_command" "Sent play command; attempt=$playAttempt accepted=$played"
+                }
+                catch {
+                    Write-Log $eventLogPath "play_command_error" "Attempt $playAttempt failed: $($_.Exception.Message)"
+                }
+
                 [void](Restore-ForegroundWindowIfSpotifyTookFocus $foregroundSnapshot)
+                Start-Sleep -Milliseconds ([Math]::Max(500, $PollMilliseconds))
+                $playingSong = @(Get-MediaSessions | Where-Object { $_.Kind -eq "spotify_song" -and $_.Status -eq "Playing" } | Select-Object -First 1)
+                if ($playingSong.Count -gt 0) {
+                    $playConfirmed = $true
+                    Write-Log $eventLogPath "play_confirmed" "Spotify playback resumed after $playAttempt attempt(s)"
+                    break
+                }
+
+                $pausedSong = @(Get-MediaSessions | Where-Object { $_.Kind -eq "spotify_song" } | Select-Object -First 1)
+                if ($pausedSong.Count -gt 0) {
+                    $item = $pausedSong[0]
+                }
             }
-            catch {
-                Write-Log $eventLogPath "play_command_error" $_.Exception.Message
+
+            if (-not $playConfirmed) {
+                Write-Log $eventLogPath "play_command_error" "Spotify accepted Play attempts but did not reach Playing within 8 seconds"
             }
 
             return
