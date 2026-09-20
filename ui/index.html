@@ -52,15 +52,34 @@
           <input id="adTrackNumbers" type="text" spellcheck="false">
           <small>Comma-separated values, e.g. 5.</small>
         </label>
+        <label>
+          <span>CPU spike threshold</span>
+          <input id="spikeThresholdPercent" type="number" min="1" max="100" step="1">
+          <small>Combined Spotify CPU percentage that starts a recorded spike.</small>
+        </label>
       </div>
 
       <div class="toggles">
         <label><input id="autoRestart" type="checkbox"> Auto restart Spotify on ad-like media</label>
         <label><input id="useColor" type="checkbox"> Use colored terminal output</label>
+        <label><input id="cpuMonitoringEnabled" type="checkbox"> Monitor Spotify CPU spikes</label>
         <label><input id="treatDisabledNextAsAd" type="checkbox"> Treat disabled Next media control as ad-like</label>
         <label><input id="treatShortNonSongTrackAsAd" type="checkbox"> Treat short non-song tracks as ad-like</label>
         <label><input id="treatBlankShortMediaAsAd" type="checkbox"> Treat blank short media as ad-like</label>
       </div>
+
+      <section class="cpu-monitor" aria-label="Spotify CPU monitor">
+        <div class="line dim">C:\&gt; media-guard --spotify-cpu</div>
+        <div class="cpu-grid">
+          <div><span>Current</span><strong id="cpuCurrent">--</strong></div>
+          <div><span>Highest</span><strong id="cpuHighest">--</strong></div>
+          <div><span>Active duration</span><strong id="cpuActiveDuration">--</strong></div>
+          <div><span>Longest spike</span><strong id="cpuLongest">--</strong></div>
+          <div><span>Spike count</span><strong id="cpuSpikeCount">--</strong></div>
+          <div><span>Spotify processes</span><strong id="cpuProcessCount">--</strong></div>
+          <div class="cpu-wide"><span>Peak process</span><strong id="cpuCulprit">Waiting for samples</strong></div>
+        </div>
+      </section>
 
       <div class="actions">
         <button id="saveBtn">Save Settings</button>

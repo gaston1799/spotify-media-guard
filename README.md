@@ -10,6 +10,7 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 - No Spotify API key, login, or Premium requirement.
 - Detects Spotify song, pause, resume, and ad-like placeholder metadata.
 - Logs media position, duration, track number, skip-control state, and detection kind.
+- Monitors only Spotify processes for combined CPU usage, peak subprocess, spike count, and spike duration in the live dashboard.
 - Can treat Spotify media with disabled Next as ad-like before the older metadata heuristics.
 - Restarts Spotify when ad-like metadata is detected.
 - Tries a normal Spotify window close before force-stopping processes. If it has to force-stop, it sends one Next command after reopening to avoid replaying the previous song.
@@ -87,7 +88,11 @@ One-shot setup:
 %APPDATA%\SpotifyPlayLogger\settings.json
 %APPDATA%\SpotifyPlayLogger\windows_media_play_log.txt
 %APPDATA%\SpotifyPlayLogger\windows_media_raw_log.txt
+%APPDATA%\SpotifyPlayLogger\spotify_cpu_stats.json
+%APPDATA%\SpotifyPlayLogger\spotify_cpu_spikes.txt
 ```
+
+CPU spike monitoring is enabled by default with a configurable 15% combined-CPU threshold. The stats file contains the current session snapshot; the spike log is append-only history.
 
 Default detection settings live in:
 

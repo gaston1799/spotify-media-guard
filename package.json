@@ -1,6 +1,6 @@
 {
   "name": "spotify-media-guard",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Windows media-control guard for Spotify with ad-like media restart handling.",
   "main": "electron/main.js",
   "scripts": {

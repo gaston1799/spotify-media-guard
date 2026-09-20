@@ -128,6 +128,35 @@ small {
   margin-top: 20px;
 }
 
+.cpu-monitor {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.cpu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.cpu-grid > div {
+  min-height: 76px;
+  background: #020403;
+  padding: 12px;
+}
+
+.cpu-grid span,
+.cpu-grid strong {
+  display: block;
+}
+
+.cpu-grid span { color: var(--muted); }
+.cpu-grid strong { margin-top: 6px; color: var(--cyan); font-size: 18px; }
+.cpu-grid .cpu-wide { grid-column: span 3; }
+
 button {
   min-height: 38px;
   border: 1px solid var(--green);
@@ -177,7 +206,10 @@ button:hover { background: #123920; }
   }
 
   .grid,
-  .toggles {
+  .toggles,
+  .cpu-grid {
     grid-template-columns: 1fr;
   }
+
+  .cpu-grid .cpu-wide { grid-column: span 1; }
 }

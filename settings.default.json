@@ -4,6 +4,10 @@
   "restartTimeoutSeconds": 60,
   "autoRestart": true,
   "useColor": true,
+  "cpuMonitoring": {
+    "enabled": true,
+    "spikeThresholdPercent": 15
+  },
   "adDetection": {
     "adTrackNumbers": [
       5

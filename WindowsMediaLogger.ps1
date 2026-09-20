@@ -27,6 +27,8 @@ if ([System.Threading.Thread]::CurrentThread.ApartmentState -ne "STA") {
 $logDir = Join-Path $env:APPDATA "SpotifyPlayLogger"
 $eventLogPath = Join-Path $logDir "windows_media_play_log.txt"
 $rawLogPath = Join-Path $logDir "windows_media_raw_log.txt"
+$cpuLogPath = Join-Path $logDir "spotify_cpu_spikes.txt"
+$cpuStatsPath = Join-Path $logDir "spotify_cpu_stats.json"
 $savedSpotifyPathFile = Join-Path $logDir "last_spotify_path.txt"
 $settingsPath = Join-Path $logDir "settings.json"
 $defaultSettingsPath = Join-Path (Split-Path -Parent $PSCommandPath) "settings.default.json"
@@ -52,6 +54,10 @@ function Read-Settings {
         restartTimeoutSeconds = 60
         autoRestart = $true
         useColor = $true
+        cpuMonitoring = [pscustomobject]@{
+            enabled = $true
+            spikeThresholdPercent = 15
+        }
         adDetection = [pscustomobject]@{
             adTrackNumbers = @(5)
             normalSongTrackNumber = 2
@@ -179,6 +185,24 @@ $restartCooldownSeconds = [Math]::Max(5, [int]$settings.restartCooldownSeconds)
 $restartTimeoutSeconds = [Math]::Max(5, [int]$settings.restartTimeoutSeconds)
 $autoRestartEnabled = [bool]$settings.autoRestart -and -not $DisableRestart
 $script:UseColor = [string]::IsNullOrWhiteSpace($env:NO_COLOR) -and [bool]$settings.useColor
+$cpuMonitoringEnabled = $true
+$cpuSpikeThresholdPercent = 15.0
+if ($null -ne $settings.cpuMonitoring) {
+    $cpuMonitoringEnabled = [bool]$settings.cpuMonitoring.enabled
+    $cpuSpikeThresholdPercent = [Math]::Max(1.0, [double]$settings.cpuMonitoring.spikeThresholdPercent)
+}
+$logicalProcessorCount = [Math]::Max(1, [Environment]::ProcessorCount)
+$script:CpuPrevious = @{}
+$script:CpuLastSampleAt = Get-Date
+$script:CpuHighestPercent = 0.0
+$script:CpuHighestAt = $null
+$script:CpuHighestProcess = ""
+$script:CpuSpikeStartedAt = $null
+$script:CpuSpikePeakPercent = 0.0
+$script:CpuSpikePeakProcess = ""
+$script:CpuLongestSpikeSeconds = 0.0
+$script:CpuLastSpikeSeconds = 0.0
+$script:CpuSpikeCount = 0
 
 function Write-Color($text, $color = "Gray", [switch]$NoNewline) {
     if ($script:UseColor) {
@@ -208,6 +232,8 @@ function Get-EventColor($kind) {
         "play_command_error" { "Red"; break }
         "focus_restore" { "Cyan"; break }
         "focus_restore_error" { "Red"; break }
+        "spotify_cpu_spike" { "Yellow"; break }
+        "spotify_cpu_record" { "Magenta"; break }
         "restart_timeout" { "Red"; break }
         "restart_missing" { "Red"; break }
         "not_playing" { "DarkGray"; break }
@@ -235,6 +261,8 @@ function Get-EventLabel($kind) {
         "play_command_error" { "PLAY_ERR"; break }
         "focus_restore" { "FOCUS"; break }
         "focus_restore_error" { "FOCUS_ERR"; break }
+        "spotify_cpu_spike" { "CPU"; break }
+        "spotify_cpu_record" { "CPU_MAX"; break }
         "restart_timeout" { "TIMEOUT"; break }
         "restart_missing" { "MISSING"; break }
         "not_playing" { "IDLE"; break }
@@ -265,6 +293,8 @@ function Write-Banner {
     Write-Color "$restartCooldownSeconds sec" "White"
     Write-Color "  Timeout    : " "DarkGray" -NoNewline
     Write-Color "$restartTimeoutSeconds sec" "White"
+    Write-Color "  CPU monitor: " "DarkGray" -NoNewline
+    Write-Color $(if ($cpuMonitoringEnabled) { "on (spike >= $cpuSpikeThresholdPercent%)" } else { "off" }) $(if ($cpuMonitoringEnabled) { "Green" } else { "Yellow" })
     Write-Color "  Settings   : " "DarkGray" -NoNewline
     Write-Color $settingsPath "White"
     Write-Color "  Event log  : " "DarkGray" -NoNewline
@@ -357,6 +387,113 @@ function Write-Log($path, $kind, $message) {
 
 function Write-RawSnapshot($kind, $session) {
     Write-Log $rawLogPath $kind "source=$($session.Source) | status=$($session.Status) | title=$($session.Title) | artist=$($session.Artist) | album=$($session.Album) | albumArtist=$($session.AlbumArtist) | $(Format-MediaTiming $session)"
+}
+
+function Write-CpuStats($stats) {
+    try {
+        $stats | ConvertTo-Json -Compress | Set-Content -LiteralPath $cpuStatsPath -Encoding UTF8
+    }
+    catch {
+        # CPU monitoring must never interrupt media handling.
+    }
+}
+
+function Write-CpuSpikeLog($kind, $message) {
+    $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff zzz"
+    Add-Content -LiteralPath $cpuLogPath -Value "$stamp | $kind | $message"
+    Write-Log $eventLogPath $kind $message
+}
+
+function Measure-SpotifyCpu {
+    if (-not $cpuMonitoringEnabled) {
+        return
+    }
+
+    try {
+        $now = Get-Date
+        $elapsedSeconds = ($now - $script:CpuLastSampleAt).TotalSeconds
+        if ($elapsedSeconds -le 0) {
+            return
+        }
+
+        $processes = @(Get-Process -Name "Spotify" -ErrorAction SilentlyContinue)
+        $nextPrevious = @{}
+        $totalDeltaSeconds = 0.0
+        $peakProcessPercent = 0.0
+        $peakProcess = ""
+
+        foreach ($process in $processes) {
+            $cpuSeconds = if ($null -ne $process.CPU) { [double]$process.CPU } else { 0.0 }
+            $nextPrevious[$process.Id] = $cpuSeconds
+            if (-not $script:CpuPrevious.ContainsKey($process.Id)) {
+                continue
+            }
+
+            $deltaSeconds = [Math]::Max(0.0, $cpuSeconds - [double]$script:CpuPrevious[$process.Id])
+            $totalDeltaSeconds += $deltaSeconds
+            $processPercent = ($deltaSeconds / $elapsedSeconds / $logicalProcessorCount) * 100.0
+            if ($processPercent -gt $peakProcessPercent) {
+                $peakProcessPercent = $processPercent
+                $peakProcess = "Spotify pid $($process.Id) ($([Math]::Round($processPercent, 1))%)"
+            }
+        }
+
+        $currentPercent = [Math]::Max(0.0, ($totalDeltaSeconds / $elapsedSeconds / $logicalProcessorCount) * 100.0)
+        $script:CpuPrevious = $nextPrevious
+        $script:CpuLastSampleAt = $now
+
+        if ($currentPercent -gt $script:CpuHighestPercent) {
+            $previousRecord = $script:CpuHighestPercent
+            $script:CpuHighestPercent = $currentPercent
+            $script:CpuHighestAt = $now
+            $script:CpuHighestProcess = $peakProcess
+            if ($previousRecord -eq 0 -or ($currentPercent - $previousRecord) -ge 1.0) {
+                Write-CpuSpikeLog "spotify_cpu_record" "New Spotify CPU record: $([Math]::Round($currentPercent, 1))% across $($processes.Count) processes; peak=$peakProcess"
+            }
+        }
+
+        $isSpike = $currentPercent -ge $cpuSpikeThresholdPercent
+        if ($isSpike -and $null -eq $script:CpuSpikeStartedAt) {
+            $script:CpuSpikeStartedAt = $now
+            $script:CpuSpikePeakPercent = $currentPercent
+            $script:CpuSpikePeakProcess = $peakProcess
+            $script:CpuSpikeCount++
+            Write-CpuSpikeLog "spotify_cpu_spike" "Spike started at $([Math]::Round($currentPercent, 1))%; threshold=$cpuSpikeThresholdPercent%; processes=$($processes.Count); peak=$peakProcess"
+        }
+        elseif ($isSpike -and $currentPercent -gt $script:CpuSpikePeakPercent) {
+            $script:CpuSpikePeakPercent = $currentPercent
+            $script:CpuSpikePeakProcess = $peakProcess
+        }
+        elseif (-not $isSpike -and $null -ne $script:CpuSpikeStartedAt) {
+            $durationSeconds = ($now - $script:CpuSpikeStartedAt).TotalSeconds
+            $script:CpuLastSpikeSeconds = $durationSeconds
+            $script:CpuLongestSpikeSeconds = [Math]::Max($script:CpuLongestSpikeSeconds, $durationSeconds)
+            Write-CpuSpikeLog "spotify_cpu_spike" "Spike ended; duration=$([Math]::Round($durationSeconds, 1))s peak=$([Math]::Round($script:CpuSpikePeakPercent, 1))% culprit=$($script:CpuSpikePeakProcess)"
+            $script:CpuSpikeStartedAt = $null
+            $script:CpuSpikePeakPercent = 0.0
+            $script:CpuSpikePeakProcess = ""
+        }
+
+        $activeDuration = if ($null -ne $script:CpuSpikeStartedAt) { ($now - $script:CpuSpikeStartedAt).TotalSeconds } else { 0.0 }
+        Write-CpuStats ([ordered]@{
+            updatedAt = $now.ToString("o")
+            currentPercent = [Math]::Round($currentPercent, 2)
+            highestPercent = [Math]::Round($script:CpuHighestPercent, 2)
+            highestAt = if ($null -ne $script:CpuHighestAt) { $script:CpuHighestAt.ToString("o") } else { $null }
+            peakProcess = $script:CpuHighestProcess
+            processCount = $processes.Count
+            spikeThresholdPercent = $cpuSpikeThresholdPercent
+            spikeActive = ($null -ne $script:CpuSpikeStartedAt)
+            activeDurationSeconds = [Math]::Round($activeDuration, 2)
+            activePeakPercent = [Math]::Round($script:CpuSpikePeakPercent, 2)
+            longestSpikeSeconds = [Math]::Round($script:CpuLongestSpikeSeconds, 2)
+            lastSpikeSeconds = [Math]::Round($script:CpuLastSpikeSeconds, 2)
+            spikeCount = $script:CpuSpikeCount
+        })
+    }
+    catch {
+        Write-Log $rawLogPath "cpu_monitor_error" $_.Exception.Message
+    }
 }
 
 function Get-RunningSpotifyPath {
@@ -711,6 +848,7 @@ function Restart-SpotifyAndResume {
     Write-Log $eventLogPath "waiting_for_spotify_media" "Waiting for Spotify song metadata after restart"
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Milliseconds $PollMilliseconds
+        Measure-SpotifyCpu
         [void](Restore-ForegroundWindowIfSpotifyTookFocus $foregroundSnapshot)
         $spotifySong = @(Get-MediaSessions | Where-Object { $_.Kind -eq "spotify_song" } | Select-Object -First 1)
 
@@ -751,6 +889,7 @@ function Restart-SpotifyAndResume {
 
                 [void](Restore-ForegroundWindowIfSpotifyTookFocus $foregroundSnapshot)
                 Start-Sleep -Milliseconds ([Math]::Max(500, $PollMilliseconds))
+                Measure-SpotifyCpu
                 $playingSong = @(Get-MediaSessions | Where-Object { $_.Kind -eq "spotify_song" -and $_.Status -eq "Playing" } | Select-Object -First 1)
                 if ($playingSong.Count -gt 0) {
                     $playConfirmed = $true
@@ -797,6 +936,7 @@ while ($true) {
     }
 
     try {
+        Measure-SpotifyCpu
         $sessions = @(Get-MediaSessions)
 
         if ($sessions.Count -eq 0) {

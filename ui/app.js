@@ -14,6 +14,8 @@ const adFields = [
   "treatBlankShortMediaAsAd"
 ];
 
+const cpuFields = ["cpuMonitoringEnabled", "spikeThresholdPercent"];
+
 const $ = (id) => document.getElementById(id);
 
 let current = null;
@@ -45,6 +47,8 @@ function readForm() {
     .split(",")
     .map((value) => Number(value.trim()))
     .filter((value) => Number.isFinite(value));
+  settings.cpuMonitoring.enabled = $("cpuMonitoringEnabled").checked;
+  settings.cpuMonitoring.spikeThresholdPercent = Number($("spikeThresholdPercent").value);
   return settings;
 }
 
@@ -62,7 +66,28 @@ function writeForm(settings) {
     else input.value = value;
   }
   $("adTrackNumbers").value = settings.adDetection.adTrackNumbers.join(", ");
+  $("cpuMonitoringEnabled").checked = Boolean(settings.cpuMonitoring.enabled);
+  $("spikeThresholdPercent").value = settings.cpuMonitoring.spikeThresholdPercent;
   renderPreview();
+}
+
+function formatPercent(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)}%` : "--";
+}
+
+function formatDuration(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)}s` : "--";
+}
+
+function renderCpuStats(stats) {
+  if (!stats) return;
+  $("cpuCurrent").textContent = formatPercent(stats.currentPercent);
+  $("cpuHighest").textContent = formatPercent(stats.highestPercent);
+  $("cpuActiveDuration").textContent = stats.spikeActive ? formatDuration(stats.activeDurationSeconds) : "idle";
+  $("cpuLongest").textContent = formatDuration(stats.longestSpikeSeconds);
+  $("cpuSpikeCount").textContent = String(stats.spikeCount ?? 0);
+  $("cpuProcessCount").textContent = String(stats.processCount ?? 0);
+  $("cpuCulprit").textContent = stats.peakProcess || "Waiting for samples";
 }
 
 function renderPreview() {
@@ -87,7 +112,7 @@ async function resetSettings() {
   setStatus("RESET");
 }
 
-for (const id of [...fields, ...adFields, "adTrackNumbers"]) {
+for (const id of [...fields, ...adFields, ...cpuFields, "adTrackNumbers"]) {
   window.addEventListener("DOMContentLoaded", () => {
     $(id).addEventListener("input", renderPreview);
     $(id).addEventListener("change", renderPreview);
@@ -113,6 +138,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     await loadSettings();
     const status = await window.mediaGuard.guardStatus();
     setStatus(status.running ? "GUARD ON" : "READY");
+    renderCpuStats(await window.mediaGuard.cpuStats());
+    window.setInterval(async () => renderCpuStats(await window.mediaGuard.cpuStats()), 1000);
   } catch (error) {
     setStatus(error.message, "error");
   }

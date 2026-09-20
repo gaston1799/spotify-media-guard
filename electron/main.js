@@ -6,6 +6,7 @@ const appRoot = path.resolve(__dirname, "..");
 const settingsDir = path.join(app.getPath("appData"), "SpotifyPlayLogger");
 const settingsPath = path.join(settingsDir, "settings.json");
 const eventLogPath = path.join(settingsDir, "windows_media_play_log.txt");
+const cpuStatsPath = path.join(settingsDir, "spotify_cpu_stats.json");
 const stopFilePath = path.join(settingsDir, "stop.guard");
 const launcherPath = path.join(settingsDir, "launch-guard.vbs");
 const runtimeLoggerScriptPath = path.join(settingsDir, "WindowsMediaLogger.ps1");
@@ -244,6 +245,13 @@ ipcMain.handle("settings:reset", () => {
 ipcMain.handle("guard:start", (_event, options) => startGuard(options));
 ipcMain.handle("guard:stop", () => stopGuard());
 ipcMain.handle("guard:status", () => ({ running: guardRunning, pid: null }));
+ipcMain.handle("cpu:stats", () => {
+  try {
+    return fs.existsSync(cpuStatsPath) ? readJsonFile(cpuStatsPath) : null;
+  } catch {
+    return null;
+  }
+});
 ipcMain.handle("path:openLogs", () => {
   fs.mkdirSync(settingsDir, { recursive: true });
   shell.openPath(settingsDir);

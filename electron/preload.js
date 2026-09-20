@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("mediaGuard", {
   startGuard: (options) => ipcRenderer.invoke("guard:start", options),
   stopGuard: () => ipcRenderer.invoke("guard:stop"),
   guardStatus: () => ipcRenderer.invoke("guard:status"),
+  cpuStats: () => ipcRenderer.invoke("cpu:stats"),
   openLogs: () => ipcRenderer.invoke("path:openLogs"),
   onGuardLog: (handler) => {
     const listener = (_event, entry) => handler(entry);
