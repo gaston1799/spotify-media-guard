@@ -7,6 +7,7 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 ## Features
 
 - Electron desktop settings UI.
+- Uses the Spotify Media Guard shield as the Windows EXE, shortcut, taskbar, and app-window icon.
 - No Spotify API key, login, or Premium requirement.
 - Detects Spotify song, pause, resume, and ad-like placeholder metadata.
 - Logs media position, duration, track number, skip-control state, and detection kind.

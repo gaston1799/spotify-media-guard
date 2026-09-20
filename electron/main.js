@@ -220,7 +220,7 @@ function createWindow() {
     minHeight: 560,
     backgroundColor: "#050807",
     title: "Spotify Media Guard",
-    icon: path.join(appRoot, "assets", "app-icon.svg"),
+    icon: path.join(appRoot, "assets", "app-icon.ico"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
