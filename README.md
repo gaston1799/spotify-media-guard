@@ -21,6 +21,8 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 
 ## Run The Release Build
 
+For another computer, this is the recommended installation path. Do not clone the source or install Node.js unless you intend to develop the app.
+
 Download the release zip, extract it, and run:
 
 ```text
@@ -39,12 +41,12 @@ Requirements:
 
 - Windows 10 or newer.
 - PowerShell 5.1 or newer.
-- Node.js LTS.
+- Node.js 22.12 or newer when building from source. Node.js is not needed for the release ZIP.
 
 Install dependencies:
 
 ```powershell
-npm install
+npm ci
 ```
 
 Run in development:
