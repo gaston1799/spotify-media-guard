@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, shell, Tray, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { validateSettings } = require("./settings.cjs");
+const { createUpdateChecker, releaseUrl } = require("./updates.cjs");
+const checkUpdates = createUpdateChecker(app.getVersion());
 
 const appRoot = path.resolve(__dirname, "..");
 const settingsDir = path.join(app.getPath("appData"), "SpotifyPlayLogger");
@@ -276,6 +278,8 @@ function createWindow() {
 ipcMain.handle("settings:read", () => readSettings());
 ipcMain.handle("settings:write", (_event, settings) => writeSettings(settings));
 ipcMain.handle("settings:validate", (_event, settings) => validateSettings(settings, readJsonFile(defaultSettingsPath)));
+ipcMain.handle("updates:check", () => checkUpdates());
+ipcMain.handle("updates:open", () => shell.openExternal(releaseUrl));
 ipcMain.handle("settings:reset", () => {
   fs.copyFileSync(defaultSettingsPath, settingsPath);
   return readSettings();

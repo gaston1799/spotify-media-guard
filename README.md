@@ -6,6 +6,8 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 
 ## Features
 
+- Checks GitHub for stable releases at startup and from Settings. An available-update badge opens Settings; Download Update opens the official release in your browser. Updates install manually.
+
 - Dashboard with a separate Settings page; Escape returns to the dashboard and preserves unsaved edits.
 - Local color palette with live preview, validated JSON import from a file or pasted text, and JSON export.
 - System tray menu, a custom title bar, and one app instance per Windows user session. Opening the shortcut restores the existing window.

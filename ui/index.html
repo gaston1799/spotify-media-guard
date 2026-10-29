@@ -26,12 +26,18 @@
           <p>Windows media watcher and restart automation</p>
         </div>
       </div>
-      <div class="header-actions"><div class="status" id="saveStatus" role="status">READY</div><button id="settingsBtn" title="Settings" aria-label="Settings"><i data-lucide="settings"></i></button></div>
+      <div class="header-actions"><button id="updateBadge" hidden title="Update available" aria-label="Update available"><i data-lucide="download"></i></button><div class="status" id="saveStatus" role="status">READY</div><button id="settingsBtn" title="Settings" aria-label="Settings"><i data-lucide="settings"></i></button></div>
     </header>
 
     <section class="terminal">
       <section id="settingsPage" hidden>
       <div class="page-heading"><button id="backBtn" title="Back to dashboard" aria-label="Back to dashboard"><i data-lucide="arrow-left"></i></button><h2>Settings</h2><span id="dirtyState"></span></div>
+      <h3>Updates</h3>
+      <p id="updateStatus" role="status">Checking for updates...</p>
+      <div class="actions">
+        <button id="checkUpdatesBtn"><i data-lucide="refresh-cw"></i> Check for Updates</button>
+        <button id="downloadUpdateBtn" hidden><i data-lucide="download"></i> Download Update</button>
+      </div>
       <h3>Monitoring &amp; Detection</h3>
       <div class="grid">
         <label>

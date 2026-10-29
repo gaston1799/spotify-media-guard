@@ -20,6 +20,24 @@ const $ = (id) => document.getElementById(id);
 
 let current = null;
 let guardEnabled = false;
+async function checkForUpdates() {
+  $("checkUpdatesBtn").disabled = true;
+  $("updateStatus").textContent = "Checking for updates...";
+  try {
+    const result = await window.mediaGuard.checkUpdates();
+    $("updateBadge").hidden = !result.available;
+    $("downloadUpdateBtn").hidden = !result.available;
+    $("updateStatus").textContent = result.error
+      ? "Could not check for updates: " + result.error
+      : result.available
+        ? "Installed v" + result.installedVersion + " / Available v" + result.latestVersion
+        : "v" + result.installedVersion + " is up to date.";
+  } catch {
+    $("updateStatus").textContent = "Could not check for updates. Check your connection and try again.";
+  } finally {
+    $("checkUpdatesBtn").disabled = false;
+  }
+}
 let savedSnapshot = "";
 const paletteNames = { bg: "Background", panel: "Surface", text: "Text", muted: "Secondary text", green: "Accent", cyan: "Highlight", border: "Borders" };
 
@@ -178,6 +196,10 @@ for (const id of [...fields, ...adFields, ...cpuFields, "adTrackNumbers"]) {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  $("checkUpdatesBtn").addEventListener("click", checkForUpdates);
+  $("downloadUpdateBtn").addEventListener("click", () => window.mediaGuard.openUpdate());
+  $("updateBadge").addEventListener("click", () => showSettings(true));
+  checkForUpdates();
   for (const [key, name] of Object.entries(paletteNames)) {
     const label = document.createElement("label");
     const swatch = document.createElement("input");
