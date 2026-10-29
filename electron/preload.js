@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("mediaGuard", {
   readSettings: () => ipcRenderer.invoke("settings:read"),
   checkUpdates: () => ipcRenderer.invoke("updates:check"),
+  releaseHistory: () => ipcRenderer.invoke("updates:history"),
+  openRelease: (version) => ipcRenderer.invoke("updates:release", version),
   openUpdate: () => ipcRenderer.invoke("updates:open"),
   writeSettings: (settings) => ipcRenderer.invoke("settings:write", settings),
   validateSettings: (settings) => ipcRenderer.invoke("settings:validate", settings),

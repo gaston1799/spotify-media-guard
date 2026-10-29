@@ -35,7 +35,7 @@ function createUpdateChecker(installedVersion, fetchRelease = fetch) {
         const release = await response.json();
         if (release.draft || release.prerelease) throw new Error("No stable release available.");
         const available = isNewer(release.tag_name, installedVersion);
-        cached = { installedVersion, latestVersion: release.tag_name.replace(/^v/, ""), available, releaseUrl, checkedAt: new Date().toISOString() };
+        cached = { installedVersion, latestVersion: release.tag_name.replace(/^v/, ""), title: typeof release.name === "string" ? release.name.slice(0, 200) : release.tag_name, notes: typeof release.body === "string" ? release.body.slice(0, 20000) : "", available, releaseUrl, checkedAt: new Date().toISOString() };
         checkedAt = Date.now();
         return cached;
       } catch (error) {

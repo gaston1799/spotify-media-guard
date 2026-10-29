@@ -17,6 +17,7 @@
       <button id="closeBtn" title="Quit Spotify Media Guard" aria-label="Quit Spotify Media Guard"><i data-lucide="x"></i></button>
     </div>
   </header>
+  <button id="updateBanner" class="update-banner" hidden><i data-lucide="download"></i><span id="updateBannerText"></span><i data-lucide="arrow-right"></i></button>
   <main class="shell">
     <header class="topbar">
       <div class="brand">
@@ -32,12 +33,14 @@
     <section class="terminal">
       <section id="settingsPage" hidden>
       <div class="page-heading"><button id="backBtn" title="Back to dashboard" aria-label="Back to dashboard"><i data-lucide="arrow-left"></i></button><h2>Settings</h2><span id="dirtyState"></span></div>
-      <h3>Updates</h3>
+      <h3 id="updatesHeading" tabindex="-1">Updates</h3>
       <p id="updateStatus" role="status">Checking for updates...</p>
       <div class="actions">
         <button id="checkUpdatesBtn"><i data-lucide="refresh-cw"></i> Check for Updates</button>
         <button id="downloadUpdateBtn" hidden><i data-lucide="download"></i> Download Update</button>
       </div>
+      <section id="latestRelease" class="release-notes" aria-label="Latest release notes"></section>
+      <button id="viewHistoryBtn"><i data-lucide="history"></i> View Full History</button>
       <h3>Monitoring &amp; Detection</h3>
       <div class="grid">
         <label>
@@ -110,6 +113,11 @@
       </details>
       </section>
 
+      <section id="historyPage" hidden>
+        <div class="page-heading"><button id="historyBackBtn" title="Back to Settings" aria-label="Back to Settings"><i data-lucide="arrow-left"></i></button><h2>Version History</h2></div>
+        <p id="historyStatus" role="status">Loading release history...</p>
+        <div id="historyEntries"></div>
+      </section>
       <section id="dashboardPage">
       <section class="cpu-monitor" aria-label="Spotify CPU monitor">
         <div class="line dim">C:\&gt; media-guard --spotify-cpu</div>

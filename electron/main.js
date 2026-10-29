@@ -4,10 +4,12 @@ const fs = require("fs");
 const { spawn } = require("child_process");
 const { validateSettings } = require("./settings.cjs");
 const { createUpdateChecker, releaseUrl } = require("./updates.cjs");
+const { createHistoryLoader } = require("./history.cjs");
 const checkUpdates = createUpdateChecker(app.getVersion());
 
 const appRoot = path.resolve(__dirname, "..");
 const settingsDir = path.join(app.getPath("appData"), "SpotifyPlayLogger");
+const loadHistory = createHistoryLoader(appRoot, settingsDir, app.getVersion());
 const settingsPath = path.join(settingsDir, "settings.json");
 const eventLogPath = path.join(settingsDir, "windows_media_play_log.txt");
 const cpuStatsPath = path.join(settingsDir, "spotify_cpu_stats.json");
@@ -325,6 +327,11 @@ ipcMain.handle("settings:read", () => readSettings());
 ipcMain.handle("settings:write", (_event, settings) => writeSettings(settings));
 ipcMain.handle("settings:validate", (_event, settings) => validateSettings(settings, readJsonFile(defaultSettingsPath)));
 ipcMain.handle("updates:check", () => checkUpdates());
+ipcMain.handle("updates:history", () => loadHistory());
+ipcMain.handle("updates:release", (_event, version) => {
+  if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Invalid release version");
+  return shell.openExternal("https://github.com/gaston1799/spotify-media-guard/releases/tag/v" + version);
+});
 ipcMain.handle("updates:open", () => shell.openExternal(releaseUrl));
 ipcMain.handle("settings:reset", () => {
   fs.copyFileSync(defaultSettingsPath, settingsPath);

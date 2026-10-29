@@ -6,6 +6,11 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 
 ## Features
 
+- Named update banner opens Settings with latest release notes and download controls.
+- Version History starts at v0.7.0, fetches changelog.json once per app session, and uses a local cache or bundled copy offline.
+
+Release history is maintained in `changelog.json`. Add the version, release date, title, and categorized changes when publishing. GitHub Releases remains the authority for update availability.
+
 - Checks GitHub for stable releases at startup and from Settings. An available-update badge opens Settings; Download Update opens the official release in your browser. Updates install manually.
 
 - Dashboard with a separate Settings page; Escape returns to the dashboard and preserves unsaved edits.

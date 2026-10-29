@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "version": "0.8.0",
+      "date": "2026-10-29",
+      "title": "Release History & Update Banners",
+      "changes": {
+        "Added": [
+          "An update banner with the latest GitHub release title opens Settings.",
+          "Latest release notes beside update controls and a full Version History view.",
+          "Locally cached release history with bundled offline fallback."
+        ]
+      }
+    },
+    {
+      "version": "0.7.2",
+      "date": "2026-10-29",
+      "title": "Tray & Guard Reliability",
+      "changes": {
+        "Fixed": [
+          "Guard worker lifecycle when hiding to tray and reopening the shortcut.",
+          "Hidden PowerShell startup and worker exit detection.",
+          "Separate stop signals for each app instance."
+        ]
+      }
+    },
+    {
+      "version": "0.7.1",
+      "date": "2026-10-29",
+      "title": "Update Checker",
+      "changes": { "Added": [
+        "Startup and manual GitHub update checks in Settings.",
+        "Available-update indicator and official release download link.",
+        "Timeout, offline, and rate-limit handling."
+      ] }
+    },
+    {
+      "version": "0.7.0",
+      "date": "2026-10-29",
+      "title": "Settings & System Tray",
+      "changes": { "Added": [
+        "Separate Settings page, local palette controls, and JSON import/export.",
+        "System tray, single-instance activation, and custom title bar.",
+        "Taskbar shortcut identity repair and compact interface styling."
+      ] }
+    }
+  ]
+}
