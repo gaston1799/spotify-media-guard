@@ -6,12 +6,14 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 
 ## Features
 
+- Update & Restart downloads the verified Windows release, prepares it, stops the guard, replaces the installation, and relaunches. Settings/logs remain in AppData; a backup folder is retained beside the app for recovery. Use a dedicated Spotify Media Guard folder with write access.
+
 - Named update banner opens Settings with latest release notes and download controls.
 - Version History starts at v0.7.0, fetches changelog.json once per app session, and uses a local cache or bundled copy offline.
 
 Release history is maintained in `changelog.json`. Add the version, release date, title, and categorized changes when publishing. GitHub Releases remains the authority for update availability.
 
-- Checks GitHub for stable releases at startup and from Settings. An available-update badge opens Settings; Download Update opens the official release in your browser. Updates install manually.
+- Checks GitHub for stable releases at startup and from Settings. An available-update badge opens Settings; Download Update remains available alongside Update & Restart.
 
 - Dashboard with a separate Settings page; Escape returns to the dashboard and preserves unsaved edits.
 - Local color palette with live preview, validated JSON import from a file or pasted text, and JSON export.

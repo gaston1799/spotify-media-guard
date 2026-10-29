@@ -3,6 +3,13 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("mediaGuard", {
   readSettings: () => ipcRenderer.invoke("settings:read"),
   checkUpdates: () => ipcRenderer.invoke("updates:check"),
+  installUpdate: () => ipcRenderer.invoke("updates:install"),
+  updateResult: () => ipcRenderer.invoke("updates:result"),
+  onUpdateProgress: (handler) => {
+    const listener = (_event, message) => handler(message);
+    ipcRenderer.on("update-progress", listener);
+    return () => ipcRenderer.removeListener("update-progress", listener);
+  },
   releaseHistory: () => ipcRenderer.invoke("updates:history"),
   openRelease: (version) => ipcRenderer.invoke("updates:release", version),
   openUpdate: () => ipcRenderer.invoke("updates:open"),

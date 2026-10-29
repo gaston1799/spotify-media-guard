@@ -5,6 +5,7 @@ const { spawn } = require("child_process");
 const { validateSettings } = require("./settings.cjs");
 const { createUpdateChecker, releaseUrl } = require("./updates.cjs");
 const { createHistoryLoader } = require("./history.cjs");
+const { prepareUpdate, launchExternalHelper } = require("./installer.cjs");
 const checkUpdates = createUpdateChecker(app.getVersion());
 
 const appRoot = path.resolve(__dirname, "..");
@@ -36,6 +37,11 @@ let tray = null;
 let guardStartedAt = 0;
 let workerCheckTimer = null;
 let worker = null;
+let updateInProgress = false;
+
+function updateProgress(message) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("update-progress", message);
+}
 
 function lifecycleLog(kind, message) {
   fs.mkdirSync(settingsDir, { recursive: true });
@@ -236,6 +242,7 @@ function stopLogTail() {
 }
 
 async function startGuard({ monitorOnly = false } = {}) {
+  if (updateInProgress) throw new Error("An update is in progress.");
   if (guardRunning) {
     return { running: true, pid: null };
   }
@@ -327,6 +334,35 @@ ipcMain.handle("settings:read", () => readSettings());
 ipcMain.handle("settings:write", (_event, settings) => writeSettings(settings));
 ipcMain.handle("settings:validate", (_event, settings) => validateSettings(settings, readJsonFile(defaultSettingsPath)));
 ipcMain.handle("updates:check", () => checkUpdates());
+ipcMain.handle("updates:install", async () => {
+  if (updateInProgress) throw new Error("An update is already in progress.");
+  if (!app.isPackaged || process.platform !== "win32") throw new Error("Update & Restart is available in the packaged Windows app.");
+  updateInProgress = true;
+  const wasRunning = guardRunning;
+  try {
+    const prepared = await prepareUpdate({
+      installedVersion: app.getVersion(), executable: process.execPath, appRoot, settingsDir,
+      tempDir: app.getPath("temp"), powerShell: resolvePowerShellPath(), onProgress: updateProgress
+    });
+    updateProgress("Stopping guard before restart...");
+    stopGuard("Update & Restart");
+    const deadline = Date.now() + 60000;
+    while (workerAlive() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 200));
+    if (workerAlive()) throw new Error("Guard is still finishing its current operation. Please try again shortly.");
+    await launchExternalHelper(prepared.powerShell, prepared.helper, prepared.planPath, shell);
+    updateProgress("Restarting to apply update...");
+    setTimeout(() => app.quit(), 300);
+    return { restarting: true };
+  } catch (error) {
+    updateInProgress = false;
+    if (wasRunning && !workerAlive()) await startGuard();
+    updateProgress("Update failed: " + error.message);
+    throw error;
+  }
+});
+ipcMain.handle("updates:result", () => {
+  try { return readJsonFile(path.join(settingsDir, "update-result.json")); } catch { return null; }
+});
 ipcMain.handle("updates:history", () => loadHistory());
 ipcMain.handle("updates:release", (_event, version) => {
   if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Invalid release version");

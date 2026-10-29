@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.9.0",
+      "date": "2026-10-29",
+      "title": "Update & Restart",
+      "changes": { "Added": [
+        "Download, verify, apply, and restart from Settings.",
+        "SHA-256 package verification and preparation before the app closes.",
+        "Installation backup and rollback if file replacement fails.",
+        "Update progress and persistent success or failure results."
+      ] }
+    },
+    {
       "version": "0.8.0",
       "date": "2026-10-29",
       "title": "Release History & Update Banners",

@@ -114,6 +114,7 @@ async function checkForUpdates() {
     renderReleaseHistory();
     $("updateBadge").hidden = !result.available;
     $("downloadUpdateBtn").hidden = !result.available;
+    $("installUpdateBtn").hidden = !result.available;
     $("updateStatus").textContent = result.error
       ? "Could not check for updates: " + result.error
       : result.available
@@ -284,6 +285,22 @@ for (const id of [...fields, ...adFields, ...cpuFields, "adTrackNumbers"]) {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  window.mediaGuard.onUpdateProgress(message => { $("installUpdateStatus").textContent = message; });
+  window.mediaGuard.updateResult().then(result => {
+    if (result) $("installUpdateStatus").textContent = result.message;
+  }).catch(() => {});
+  $("installUpdateBtn").addEventListener("click", async () => {
+    $("installUpdateBtn").disabled = true;
+    $("checkUpdatesBtn").disabled = true;
+    $("installUpdateStatus").textContent = "Preparing update...";
+    try {
+      await window.mediaGuard.installUpdate();
+    } catch (error) {
+      $("installUpdateStatus").textContent = error.message;
+      $("installUpdateBtn").disabled = false;
+      $("checkUpdatesBtn").disabled = false;
+    }
+  });
   $("updateBanner").addEventListener("click", showUpdateSettings);
   $("viewHistoryBtn").addEventListener("click", showHistory);
   $("historyBackBtn").addEventListener("click", () => { showSettings(true); $("viewHistoryBtn").focus(); });
