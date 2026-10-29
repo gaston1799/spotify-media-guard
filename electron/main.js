@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, Tray, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { spawn } = require("child_process");
 const { validateSettings } = require("./settings.cjs");
 const { createUpdateChecker, releaseUrl } = require("./updates.cjs");
 const checkUpdates = createUpdateChecker(app.getVersion());
@@ -10,8 +11,8 @@ const settingsDir = path.join(app.getPath("appData"), "SpotifyPlayLogger");
 const settingsPath = path.join(settingsDir, "settings.json");
 const eventLogPath = path.join(settingsDir, "windows_media_play_log.txt");
 const cpuStatsPath = path.join(settingsDir, "spotify_cpu_stats.json");
-const stopFilePath = path.join(settingsDir, "stop.guard");
-const launcherPath = path.join(settingsDir, "launch-guard.vbs");
+const stopFilePath = path.join(settingsDir, `stop.${process.pid}.guard`);
+const pidFilePath = path.join(settingsDir, `worker.${process.pid}.pid`);
 const runtimeLoggerScriptPath = path.join(settingsDir, "WindowsMediaLogger.ps1");
 const defaultSettingsPath = path.join(appRoot, "settings.default.json");
 const loggerScriptPath = path.join(appRoot, "WindowsMediaLogger.ps1");
@@ -30,6 +31,32 @@ let guardRunning = false;
 let logTailTimer = null;
 let logTailOffset = 0;
 let tray = null;
+let guardStartedAt = 0;
+let workerCheckTimer = null;
+let worker = null;
+
+function lifecycleLog(kind, message) {
+  fs.mkdirSync(settingsDir, { recursive: true });
+  fs.appendFileSync(eventLogPath, `${new Date().toISOString()} | ${kind} | appPid=${process.pid} | ${message}\n`);
+}
+
+function workerAlive() {
+  if (worker && worker.exitCode === null && !worker.killed) return true;
+  try {
+    const pid = Number(fs.readFileSync(pidFilePath, "utf8").replace(/^\uFEFF/, "").trim());
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    process.kill(pid, 0);
+    return true;
+  } catch { return false; }
+}
+
+function refreshWorkerState() {
+  if (guardRunning && Date.now() - guardStartedAt > 10000 && !workerAlive()) {
+    guardRunning = false;
+    lifecycleLog("guard_exit", "Worker exited; guard is off");
+    updateGuardState();
+  }
+}
 
 // Use the stable app identity across portable folders and shortcut launches.
 app.setAppUserModelId("SpotifyMediaGuard");
@@ -41,6 +68,8 @@ function showWindow() {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+  refreshWorkerState();
+  lifecycleLog("window_show", "Existing window restored");
 }
 
 function updateGuardState() {
@@ -139,10 +168,6 @@ function resolvePowerShellPath() {
   return path.join(windowsDir, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 }
 
-function quoteVbs(value) {
-  return String(value).replace(/"/g, '""');
-}
-
 function ensureRuntimeLoggerScript() {
   fs.mkdirSync(settingsDir, { recursive: true });
   const source = fs.readFileSync(loggerScriptPath, "utf8").replace(/^\uFEFF/, "");
@@ -150,7 +175,7 @@ function ensureRuntimeLoggerScript() {
   return runtimeLoggerScriptPath;
 }
 
-function writeGuardLauncher({ monitorOnly = false } = {}) {
+function prepareGuardLaunch({ monitorOnly = false } = {}) {
   fs.mkdirSync(settingsDir, { recursive: true });
   const powerShellPath = resolvePowerShellPath();
   const scriptPath = ensureRuntimeLoggerScript();
@@ -160,23 +185,17 @@ function writeGuardLauncher({ monitorOnly = false } = {}) {
     "-ExecutionPolicy",
     "Bypass",
     "-File",
-    `"${scriptPath}"`,
+    scriptPath,
     "-StopFile",
-    `"${stopFilePath}"`
+    stopFilePath
   ];
+  psArgs.push("-PidFile", pidFilePath);
 
   if (monitorOnly) {
     psArgs.push("-DisableRestart");
   }
 
-  const command = `"${powerShellPath}" ${psArgs.join(" ")}`;
-  const vbs = [
-    'Set WshShell = CreateObject("WScript.Shell")',
-    `WshShell.Run "${quoteVbs(command)}", 0, False`
-  ].join("\r\n");
-
-  fs.writeFileSync(launcherPath, vbs, "utf8");
-  return powerShellPath;
+  return { powerShellPath, psArgs };
 }
 
 function startLogTail() {
@@ -219,29 +238,56 @@ async function startGuard({ monitorOnly = false } = {}) {
     return { running: true, pid: null };
   }
 
+  guardRunning = true;
+  guardStartedAt = Date.now();
   try {
-    if (fs.existsSync(stopFilePath)) fs.unlinkSync(stopFilePath);
-    const powerShellPath = writeGuardLauncher({ monitorOnly });
-    const result = await shell.openPath(launcherPath);
-    if (result) {
-      sendLog("guard_error", `ShellExecute failed: ${result}`);
-      return { running: false, pid: null };
+    if (workerAlive()) {
+      const deadline = Date.now() + 15000;
+      while (workerAlive() && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      if (workerAlive()) throw new Error("Previous guard is still stopping. Try again shortly.");
     }
+    if (fs.existsSync(pidFilePath)) fs.unlinkSync(pidFilePath);
+    if (fs.existsSync(stopFilePath)) fs.unlinkSync(stopFilePath);
+    const { powerShellPath, psArgs } = prepareGuardLaunch({ monitorOnly });
+    const child = spawn(powerShellPath, psArgs, {
+      cwd: settingsDir, windowsHide: true, stdio: ["ignore", "ignore", "pipe"],
+      env: { ...process.env, APPDATA: app.getPath("appData") }
+    });
+    child.stderr.on("data", chunk => lifecycleLog("guard_error", chunk.toString("utf8").slice(0, 4000).trim()));
+    worker = child;
+    child.on("exit", (code, signal) => {
+      if (worker !== child) return;
+      worker = null;
+      guardRunning = false;
+      lifecycleLog("guard_exit", `Worker exited; code=${code} signal=${signal || "none"}`);
+      updateGuardState();
+    });
+    await new Promise((resolve, reject) => {
+      child.once("spawn", resolve);
+      child.once("error", reject);
+    });
     guardRunning = true;
+    lifecycleLog("guard_launch", "Worker requested");
     updateGuardState();
     startLogTail();
-    sendLog("guard_start", `PowerShell guard launched with ShellExecute using ${powerShellPath}`);
+    sendLog("guard_start", `PowerShell guard started using ${powerShellPath}; pid=${child.pid}`);
     return { running: true, pid: null };
   } catch (error) {
+    worker = null;
+    guardRunning = false;
+    updateGuardState();
     sendLog("guard_error", `Could not launch guard: ${error.message}`);
     return { running: false, pid: null };
   }
 }
 
-function stopGuard() {
+function stopGuard(reason = "User disabled guard") {
   fs.mkdirSync(settingsDir, { recursive: true });
   fs.writeFileSync(stopFilePath, new Date().toISOString(), "utf8");
   guardRunning = false;
+  lifecycleLog("guard_stop_request", reason);
   updateGuardState();
   sendLog("guard_stop", "Stop requested through guard stop file");
   setTimeout(stopLogTail, 1500);
@@ -286,8 +332,14 @@ ipcMain.handle("settings:reset", () => {
 });
 ipcMain.handle("guard:start", (_event, options) => startGuard(options));
 ipcMain.handle("guard:stop", () => stopGuard());
-ipcMain.handle("guard:status", () => ({ running: guardRunning, pid: null }));
-ipcMain.handle("window:tray", () => mainWindow?.hide());
+ipcMain.handle("guard:status", () => {
+  refreshWorkerState();
+  return { running: guardRunning, pid: null };
+});
+ipcMain.handle("window:tray", () => {
+  lifecycleLog("window_tray", "Window hidden; worker left running");
+  mainWindow?.hide();
+});
 ipcMain.handle("window:minimize", () => mainWindow?.minimize());
 ipcMain.handle("window:maximize", () => {
   if (mainWindow?.isMaximized()) mainWindow.unmaximize();
@@ -314,6 +366,7 @@ app.whenReady().then(() => {
   updateGuardState();
   createWindow();
   startGuard({ monitorOnly: process.argv.includes("--monitor-only") });
+  workerCheckTimer = setInterval(refreshWorkerState, 2000);
 });
 
 app.on("activate", () => {
@@ -325,6 +378,7 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", () => {
-  if (ownsInstance) stopGuard();
+  if (ownsInstance) stopGuard("App quit");
+  if (workerCheckTimer) clearInterval(workerCheckTimer);
   tray?.destroy();
 });

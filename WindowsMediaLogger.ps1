@@ -2,7 +2,8 @@ param(
     [int]$Samples = 0,
     [int]$PollMilliseconds = 500,
     [switch]$DisableRestart,
-    [string]$StopFile = ""
+    [string]$StopFile = "",
+    [string]$PidFile = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,6 +20,9 @@ if ([System.Threading.Thread]::CurrentThread.ApartmentState -ne "STA") {
     if (-not [string]::IsNullOrWhiteSpace($StopFile)) {
         $argsList += @("-StopFile", "`"$StopFile`"")
     }
+    if (-not [string]::IsNullOrWhiteSpace($PidFile)) {
+        $argsList += @("-PidFile", "`"$PidFile`"")
+    }
 
     $process = Start-Process -FilePath "powershell.exe" -ArgumentList $argsList -Wait -PassThru
     exit $process.ExitCode
@@ -33,6 +37,9 @@ $savedSpotifyPathFile = Join-Path $logDir "last_spotify_path.txt"
 $settingsPath = Join-Path $logDir "settings.json"
 $defaultSettingsPath = Join-Path (Split-Path -Parent $PSCommandPath) "settings.default.json"
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+if (-not [string]::IsNullOrWhiteSpace($PidFile)) {
+    Set-Content -LiteralPath $PidFile -Value $PID -Encoding ASCII
+}
 
 function Read-Settings {
     if (-not (Test-Path -LiteralPath $settingsPath) -and (Test-Path -LiteralPath $defaultSettingsPath)) {
