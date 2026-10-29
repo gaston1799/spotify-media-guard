@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { validateSettings } = require("./settings.cjs");
 
 const appRoot = path.resolve(__dirname, "..");
 const settingsDir = path.join(app.getPath("appData"), "SpotifyPlayLogger");
@@ -26,6 +27,36 @@ let mainWindow = null;
 let guardRunning = false;
 let logTailTimer = null;
 let logTailOffset = 0;
+let tray = null;
+
+// Use the stable app identity across portable folders and shortcut launches.
+app.setAppUserModelId("SpotifyMediaGuard");
+const ownsInstance = app.requestSingleInstanceLock();
+if (!ownsInstance) app.quit();
+
+function showWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function updateGuardState() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("guard-state", { running: guardRunning });
+  }
+  if (!tray) return;
+  tray.setToolTip(`Spotify Media Guard - Guard ${guardRunning ? "On" : "Off"}`);
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Show Spotify Media Guard", click: showWindow },
+    { label: "Guard enabled", type: "checkbox", checked: guardRunning,
+      click: () => guardRunning ? stopGuard() : startGuard() },
+    { type: "separator" },
+    { label: "Quit", click: () => app.quit() }
+  ]));
+}
+
+app.on("second-instance", showWindow);
 
 function readJsonFile(filePath) {
   const text = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
@@ -80,7 +111,8 @@ function readSettings() {
 
 function writeSettings(settings) {
   ensureSettings();
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf8");
+  const validated = validateSettings(settings, readJsonFile(defaultSettingsPath));
+  fs.writeFileSync(settingsPath, JSON.stringify(validated, null, 2), "utf8");
   return readSettings();
 }
 
@@ -194,6 +226,7 @@ async function startGuard({ monitorOnly = false } = {}) {
       return { running: false, pid: null };
     }
     guardRunning = true;
+    updateGuardState();
     startLogTail();
     sendLog("guard_start", `PowerShell guard launched with ShellExecute using ${powerShellPath}`);
     return { running: true, pid: null };
@@ -207,6 +240,7 @@ function stopGuard() {
   fs.mkdirSync(settingsDir, { recursive: true });
   fs.writeFileSync(stopFilePath, new Date().toISOString(), "utf8");
   guardRunning = false;
+  updateGuardState();
   sendLog("guard_stop", "Stop requested through guard stop file");
   setTimeout(stopLogTail, 1500);
   return { running: false, pid: null };
@@ -218,6 +252,7 @@ function createWindow() {
     height: 760,
     minWidth: 780,
     minHeight: 560,
+    frame: false,
     backgroundColor: "#050807",
     title: "Spotify Media Guard",
     icon: path.join(appRoot, "assets", "app-icon.ico"),
@@ -230,6 +265,8 @@ function createWindow() {
 
   mainWindow.setMenu(null);
   mainWindow.loadFile(path.join(appRoot, "ui", "index.html"));
+  mainWindow.on("maximize", () => mainWindow.webContents.send("window-state", { maximized: true }));
+  mainWindow.on("unmaximize", () => mainWindow.webContents.send("window-state", { maximized: false }));
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -238,6 +275,7 @@ function createWindow() {
 
 ipcMain.handle("settings:read", () => readSettings());
 ipcMain.handle("settings:write", (_event, settings) => writeSettings(settings));
+ipcMain.handle("settings:validate", (_event, settings) => validateSettings(settings, readJsonFile(defaultSettingsPath)));
 ipcMain.handle("settings:reset", () => {
   fs.copyFileSync(defaultSettingsPath, settingsPath);
   return readSettings();
@@ -245,6 +283,14 @@ ipcMain.handle("settings:reset", () => {
 ipcMain.handle("guard:start", (_event, options) => startGuard(options));
 ipcMain.handle("guard:stop", () => stopGuard());
 ipcMain.handle("guard:status", () => ({ running: guardRunning, pid: null }));
+ipcMain.handle("window:tray", () => mainWindow?.hide());
+ipcMain.handle("window:minimize", () => mainWindow?.minimize());
+ipcMain.handle("window:maximize", () => {
+  if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+  else mainWindow?.maximize();
+  return { maximized: mainWindow?.isMaximized() ?? false };
+});
+ipcMain.handle("window:close", () => app.quit());
 ipcMain.handle("cpu:stats", () => {
   try {
     return fs.existsSync(cpuStatsPath) ? readJsonFile(cpuStatsPath) : null;
@@ -258,16 +304,23 @@ ipcMain.handle("path:openLogs", () => {
 });
 
 app.whenReady().then(() => {
+  if (!ownsInstance) return;
+  tray = new Tray(path.join(appRoot, "assets", "app-icon.ico"));
+  tray.on("click", showWindow);
+  updateGuardState();
   createWindow();
   startGuard({ monitorOnly: process.argv.includes("--monitor-only") });
 });
 
 app.on("activate", () => {
+  if (!ownsInstance) return;
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+  showWindow();
 });
 
 app.on("before-quit", () => {
-  stopGuard();
+  if (ownsInstance) stopGuard();
+  tray?.destroy();
 });

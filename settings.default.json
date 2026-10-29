@@ -4,6 +4,15 @@
   "restartTimeoutSeconds": 60,
   "autoRestart": true,
   "useColor": true,
+  "theme": {
+    "bg": "#050807",
+    "panel": "#08120d",
+    "text": "#defee9",
+    "muted": "#88a895",
+    "green": "#1ed760",
+    "cyan": "#32e6ff",
+    "border": "#214530"
+  },
   "cpuMonitoring": {
     "enabled": true,
     "spikeThresholdPercent": 15

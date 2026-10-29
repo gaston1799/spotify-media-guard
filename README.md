@@ -6,6 +6,10 @@ It does not use the Spotify Web API, does not need a Spotify login, and does not
 
 ## Features
 
+- Dashboard with a separate Settings page; Escape returns to the dashboard and preserves unsaved edits.
+- Local color palette with live preview, validated JSON import from a file or pasted text, and JSON export.
+- System tray menu, a custom title bar, and one app instance per Windows user session. Opening the shortcut restores the existing window.
+
 - Electron desktop settings UI.
 - Uses the Spotify Media Guard shield as the Windows EXE, shortcut, taskbar, and app-window icon.
 - No Spotify API key, login, or Premium requirement.

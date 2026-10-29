@@ -39,5 +39,10 @@ $shortcut.WorkingDirectory = $desktopTarget
 $shortcut.IconLocation = $targetExe
 $shortcut.Save()
 
+& node (Join-Path $root "node_modules\electron\cli.js") (Join-Path $root "scripts\repair-shortcuts.cjs")
+if ($LASTEXITCODE -ne 0) {
+    throw "Shortcut AppUserModelID repair failed."
+}
+
 Write-Host "Installed to: $targetExe" -ForegroundColor Green
 Write-Host "Shortcut created: $shortcutPath" -ForegroundColor Green

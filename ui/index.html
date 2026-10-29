@@ -7,6 +7,16 @@
   <link rel="stylesheet" href="./app.css">
 </head>
 <body>
+  <header class="window-bar">
+    <div class="window-brand"><img src="../assets/app-icon.png" width="24" height="24" alt="">Spotify Media Guard</div>
+    <div class="window-controls">
+      <button id="guardToggleBtn" role="switch" aria-checked="false" title="Enable or disable guard"><span class="guard-dot"></span><span id="guardToggleLabel">Guard off</span></button>
+      <button id="trayBtn" title="Move to system tray" aria-label="Move to system tray"><i data-lucide="panel-bottom-close"></i></button>
+      <button id="minimizeBtn" title="Minimize" aria-label="Minimize"><i data-lucide="minus"></i></button>
+      <button id="maximizeBtn" title="Maximize" aria-label="Maximize"><i data-lucide="square"></i></button>
+      <button id="closeBtn" title="Quit Spotify Media Guard" aria-label="Quit Spotify Media Guard"><i data-lucide="x"></i></button>
+    </div>
+  </header>
   <main class="shell">
     <header class="topbar">
       <div class="brand">
@@ -16,11 +26,13 @@
           <p>Windows media watcher and restart automation</p>
         </div>
       </div>
-      <div class="status" id="saveStatus">READY</div>
+      <div class="header-actions"><div class="status" id="saveStatus" role="status">READY</div><button id="settingsBtn" title="Settings" aria-label="Settings"><i data-lucide="settings"></i></button></div>
     </header>
 
     <section class="terminal">
-      <div class="line dim">C:\&gt; media-guard --settings</div>
+      <section id="settingsPage" hidden>
+      <div class="page-heading"><button id="backBtn" title="Back to dashboard" aria-label="Back to dashboard"><i data-lucide="arrow-left"></i></button><h2>Settings</h2><span id="dirtyState"></span></div>
+      <h3>Monitoring &amp; Detection</h3>
       <div class="grid">
         <label>
           <span>Poll interval</span>
@@ -68,6 +80,31 @@
         <label><input id="treatBlankShortMediaAsAd" type="checkbox"> Treat blank short media as ad-like</label>
       </div>
 
+      <div class="actions">
+        <button id="saveBtn">Save Settings</button>
+        <button id="resetBtn">Reset Defaults</button>
+        <button id="reloadBtn">Reload</button>
+        <button id="openLogsBtn">Open Logs</button>
+      </div>
+      <h3>Color Palette</h3>
+      <div id="palette" class="palette-grid"></div>
+      <h3>Transfer Settings</h3>
+      <div class="actions">
+        <button id="exportBtn"><i data-lucide="download"></i> Export JSON</button>
+        <button id="importFileBtn"><i data-lucide="upload"></i> Import File</button>
+        <input id="importFile" type="file" accept=".json,application/json" hidden>
+      </div>
+      <label class="paste-label" for="importText">Paste settings JSON</label>
+      <textarea id="importText" rows="4" spellcheck="false"></textarea>
+      <button id="importPasteBtn">Apply Pasted JSON</button>
+      <p id="importStatus" role="status"></p>
+      <details class="settings-preview">
+        <summary>Settings JSON</summary>
+        <pre id="preview" aria-label="settings preview"></pre>
+      </details>
+      </section>
+
+      <section id="dashboardPage">
       <section class="cpu-monitor" aria-label="Spotify CPU monitor">
         <div class="line dim">C:\&gt; media-guard --spotify-cpu</div>
         <div class="cpu-grid">
@@ -81,21 +118,14 @@
         </div>
       </section>
 
-      <div class="actions">
-        <button id="saveBtn">Save Settings</button>
-        <button id="resetBtn">Reset Defaults</button>
-        <button id="reloadBtn">Reload</button>
-        <button id="startGuardBtn">Start Guard</button>
-        <button id="stopGuardBtn">Stop Guard</button>
-        <button id="openLogsBtn">Open Logs</button>
-      </div>
-      <pre id="preview" aria-label="settings preview"></pre>
       <section class="log-panel" aria-label="live guard log">
         <div class="line dim">C:\&gt; media-guard --live</div>
         <pre id="liveLog"></pre>
       </section>
+      </section>
     </section>
   </main>
+  <script src="../node_modules/lucide/dist/umd/lucide.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
