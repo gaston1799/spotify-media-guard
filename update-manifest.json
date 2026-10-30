@@ -1,15 +1,15 @@
 {
-    "tag_name":  "v0.9.1",
-    "name":  "v0.9.1 - Agent Guide \u0026 Accessible Palette",
-    "body":  "Adds an Agent Guide on every page with navigation, diagnostics, update instructions and a readable local guide file. Adds labeled hex-color fields for DOM/accessibility agents, hidden until focused. Update from v0.9.0 using Settings \u003e Check for Updates \u003e Update \u0026 Restart. For manual installs, extract the complete Windows x64 ZIP.",
+    "tag_name":  "v0.9.2",
+    "name":  "v0.9.2 - Rate-Limit Resilient Updates",
+    "body":  "Update checks and installation now fall back to a repository-hosted release manifest when the GitHub API is rate-limited or unavailable. SHA-256 and package size verification remain mandatory. Older versions affected by the API rate limit need one manual ZIP install to receive this fix. Extract the full app folder, not only the EXE. User settings remain in AppData.",
     "draft":  false,
     "prerelease":  false,
     "assets":  [
                    {
-                       "name":  "Spotify.Media.Guard-v0.9.1-win32-x64.zip",
-                       "size":  152016009,
-                       "digest":  "sha256:bda2696ebd5764bc15b90c86d6ffcf61712dbce5656ba8d29d8d5ebfcb0e79d9",
-                       "browser_download_url":  "https://github.com/gaston1799/spotify-media-guard/releases/download/v0.9.1/Spotify.Media.Guard-v0.9.1-win32-x64.zip"
+                       "name":  "Spotify.Media.Guard-v0.9.2-win32-x64.zip",
+                       "size":  152017629,
+                       "digest":  "sha256:41be3663fbf2f8854587be4c8377504428cc453c00d3ceec5e4bb62dc069628f",
+                       "browser_download_url":  "https://github.com/gaston1799/spotify-media-guard/releases/download/v0.9.2/Spotify.Media.Guard-v0.9.2-win32-x64.zip"
                    }
                ]
 }
