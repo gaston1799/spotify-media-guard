@@ -30,6 +30,12 @@
       <div class="header-actions"><button id="updateBadge" hidden title="Update available" aria-label="Update available"><i data-lucide="download"></i></button><div class="status" id="saveStatus" role="status">READY</div><button id="settingsBtn" title="Settings" aria-label="Settings"><i data-lucide="settings"></i></button></div>
     </header>
 
+    <details id="agentGuide" class="settings-preview">
+      <summary>Agent Guide</summary>
+      <p id="agentGuidePath"></p>
+      <button id="openAgentGuideBtn"><i data-lucide="book-open"></i> Open Guide File</button>
+      <pre id="agentGuideText" aria-label="Agent operating guide"></pre>
+    </details>
     <section class="terminal">
       <section id="settingsPage" hidden>
       <div class="page-heading"><button id="backBtn" title="Back to dashboard" aria-label="Back to dashboard"><i data-lucide="arrow-left"></i></button><h2>Settings</h2><span id="dirtyState"></span></div>

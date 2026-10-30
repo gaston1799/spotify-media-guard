@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.9.1",
+      "date": "2026-10-30",
+      "title": "Agent Guide & Accessible Palette",
+      "changes": { "Added": [
+        "Agent Guide available on every page with a readable local file and navigation/update instructions.",
+        "Labeled hex-color text fields for DOM and accessibility automation without changing the default palette layout."
+      ] }
+    },
+    {
       "version": "0.9.0",
       "date": "2026-10-29",
       "title": "Update & Restart",

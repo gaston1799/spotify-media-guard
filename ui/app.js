@@ -221,7 +221,10 @@ function writeForm(settings) {
   $("adTrackNumbers").value = settings.adDetection.adTrackNumbers.join(", ");
   $("cpuMonitoringEnabled").checked = Boolean(settings.cpuMonitoring.enabled);
   $("spikeThresholdPercent").value = settings.cpuMonitoring.spikeThresholdPercent;
-  for (const key of Object.keys(paletteNames)) $("color-" + key).value = settings.theme[key];
+  for (const key of Object.keys(paletteNames)) {
+    $("color-" + key).value = settings.theme[key];
+    $("color-hex-" + key).value = $("color-" + key).value;
+  }
   applyTheme(settings.theme);
   renderPreview();
 }
@@ -315,9 +318,32 @@ window.addEventListener("DOMContentLoaded", async () => {
     swatch.type = "color";
     swatch.id = "color-" + key;
     swatch.setAttribute("aria-label", name);
-    swatch.addEventListener("input", renderPreview);
+    const hex = document.createElement("input");
+    hex.type = "text";
+    hex.id = "color-hex-" + key;
+    hex.className = "agent-color-input";
+    hex.setAttribute("aria-label", name + " hex color");
+    hex.setAttribute("pattern", "#[0-9a-fA-F]{6}");
+    hex.setAttribute("aria-description", "Enter #RRGGBB, then Save Settings to persist.");
+    hex.autocomplete = "off";
+    hex.spellcheck = false;
+    swatch.addEventListener("input", () => {
+      hex.value = swatch.value;
+      hex.setCustomValidity("");
+      renderPreview();
+    });
+    hex.addEventListener("input", () => {
+      const valid = /^#[0-9a-f]{6}$/i.test(hex.value);
+      hex.setCustomValidity(valid ? "" : "Enter a six-digit hex color such as #12ab34.");
+      hex.setAttribute("aria-invalid", String(!valid));
+      if (valid) {
+        swatch.value = hex.value;
+        renderPreview();
+      }
+    });
     label.append(swatch, document.createTextNode(name));
     $("palette").append(label);
+    $("palette").append(hex);
   }
   $("settingsBtn").addEventListener("click", () => showSettings(true));
   $("backBtn").addEventListener("click", () => showSettings(false));
@@ -365,6 +391,11 @@ window.addEventListener("DOMContentLoaded", async () => {
       $("guardToggleBtn").disabled = false;
     }
   });
+  $("openAgentGuideBtn").addEventListener("click", () => window.mediaGuard.openAgentGuide().catch(error => setStatus(error.message, "error")));
+  window.mediaGuard.readAgentGuide().then(guide => {
+    $("agentGuidePath").textContent = guide.path;
+    $("agentGuideText").textContent = guide.content;
+  }).catch(error => { $("agentGuidePath").textContent = error.message; });
   $("openLogsBtn").addEventListener("click", () => window.mediaGuard.openLogs());
   window.mediaGuard.onGuardLog(appendLog);
 

@@ -330,6 +330,18 @@ function createWindow() {
   });
 }
 
+function agentGuide() {
+  const guidePath = path.join(settingsDir, "AGENT-GUIDE.md");
+  const content = fs.readFileSync(path.join(appRoot, "AGENT-GUIDE.md"), "utf8");
+  fs.mkdirSync(settingsDir, { recursive: true });
+  fs.writeFileSync(guidePath, content, "utf8");
+  return { path: guidePath, content };
+}
+ipcMain.handle("guide:read", () => agentGuide());
+ipcMain.handle("guide:open", async () => {
+  const error = await shell.openPath(agentGuide().path);
+  if (error) throw new Error(error);
+});
 ipcMain.handle("settings:read", () => readSettings());
 ipcMain.handle("settings:write", (_event, settings) => writeSettings(settings));
 ipcMain.handle("settings:validate", (_event, settings) => validateSettings(settings, readJsonFile(defaultSettingsPath)));
