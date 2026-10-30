@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.9.2",
+      "date": "2026-10-30",
+      "title": "Rate-Limit Resilient Updates",
+      "changes": { "Fixed": [
+        "Update checks and installation fall back to a repository manifest when GitHub's API is rate-limited or unavailable.",
+        "Windows package SHA-256 and size verification remain required on both update sources."
+      ] }
+    },
+    {
       "version": "0.9.1",
       "date": "2026-10-30",
       "title": "Agent Guide & Accessible Palette",

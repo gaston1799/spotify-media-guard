@@ -1,0 +1,15 @@
+{
+    "tag_name":  "v0.9.1",
+    "name":  "v0.9.1 - Agent Guide \u0026 Accessible Palette",
+    "body":  "Adds an Agent Guide on every page with navigation, diagnostics, update instructions and a readable local guide file. Adds labeled hex-color fields for DOM/accessibility agents, hidden until focused. Update from v0.9.0 using Settings \u003e Check for Updates \u003e Update \u0026 Restart. For manual installs, extract the complete Windows x64 ZIP.",
+    "draft":  false,
+    "prerelease":  false,
+    "assets":  [
+                   {
+                       "name":  "Spotify.Media.Guard-v0.9.1-win32-x64.zip",
+                       "size":  152016009,
+                       "digest":  "sha256:bda2696ebd5764bc15b90c86d6ffcf61712dbce5656ba8d29d8d5ebfcb0e79d9",
+                       "browser_download_url":  "https://github.com/gaston1799/spotify-media-guard/releases/download/v0.9.1/Spotify.Media.Guard-v0.9.1-win32-x64.zip"
+                   }
+               ]
+}

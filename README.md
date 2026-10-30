@@ -118,4 +118,13 @@ settings.default.json
 
 ## Notes
 
+## Publishing Update Metadata
+
+After publishing a stable release and its Windows ZIP, run
+`powershell -NoProfile -File scripts/publish-update-manifest.ps1`, then commit
+and push `update-manifest.json`. This retrieves the published ZIP's size and
+SHA-256 digest; never point the manifest at an unpublished asset. Update checks
+and installation use this raw repository file if the GitHub API is unavailable.
+Run `node scripts/test-updates.cjs` to test API rate-limit fallback behavior.
+
 Windows may block unsigned downloaded apps the first time they run. If that happens, right-click the exe, open Properties, choose Unblock if available, then run it again.

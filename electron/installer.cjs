@@ -2,7 +2,7 @@ const fsp = require("fs/promises");
 const path = require("path");
 const crypto = require("crypto");
 const { spawn } = require("child_process");
-const { isNewer } = require("./updates.cjs");
+const { isNewer, fetchLatestRelease } = require("./updates.cjs");
 
 async function launchExternalHelper(powerShell, helper, planPath, shell) {
   const quote = value => '"' + value.replace(/"/g, '""') + '"';
@@ -33,12 +33,7 @@ function prepareFiles(powerShell, helper, planPath) {
 }
 
 async function prepareUpdate({ installedVersion, executable, appRoot, settingsDir, tempDir, powerShell, onProgress }) {
-  const response = await fetch("https://api.github.com/repos/gaston1799/spotify-media-guard/releases/latest", {
-    headers: { Accept: "application/vnd.github+json", "User-Agent": "Spotify-Media-Guard/" + installedVersion },
-    signal: AbortSignal.timeout(15000)
-  });
-  if (!response.ok) throw new Error("Could not retrieve the release (HTTP " + response.status + ").");
-  const release = await response.json();
+  const release = await fetchLatestRelease(installedVersion);
   if (release.draft || release.prerelease || !isNewer(release.tag_name, installedVersion)) throw new Error("No newer stable update is available.");
   const asset = release.assets?.find(item => item.name === "Spotify.Media.Guard-v" + release.tag_name.replace(/^v/, "") + "-win32-x64.zip");
   if (!asset || !/^sha256:[0-9a-f]{64}$/i.test(asset.digest || "")) throw new Error("A verified Windows update package is not available. Use Download Update.");
